@@ -87,6 +87,7 @@ public class Myau {
         moduleManager.modules.put(GuiModule.class, new GuiModule());
         moduleManager.modules.put(HitSelect.class, new HitSelect());
         moduleManager.modules.put(HUD.class, new HUD());
+        moduleManager.modules.put(BackTrack.class, new BackTrack());
         moduleManager.modules.put(MoreKB.class, new MoreKB());
         moduleManager.modules.put(Indicators.class, new Indicators());
         moduleManager.modules.put(InventoryClicker.class, new InventoryClicker());
