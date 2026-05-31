@@ -194,6 +194,58 @@ public class RotationUtil {
                 + Math.sin(time * frequency * 0.73f + 2.7f) * 0.15f);
     }
 
+    // ==================== Interpolation ====================
+
+    public static float cubicBezier(float p0, float p1, float p2, float p3, float t) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, t));
+        float u = 1.0f - clamped;
+        return u * u * u * p0
+                + 3.0f * u * u * clamped * p1
+                + 3.0f * u * clamped * clamped * p2
+                + clamped * clamped * clamped * p3;
+    }
+
+    public static float[] slerpYawPitch(float currentYaw, float currentPitch, float targetYaw, float targetPitch, float t) {
+        float clamped = Math.max(0.0f, Math.min(1.0f, t));
+        Vec3 from = yawPitchToVector(currentYaw, currentPitch);
+        Vec3 to = yawPitchToVector(targetYaw, targetPitch);
+        double dot = MathHelper.clamp_double(from.dotProduct(to), -1.0, 1.0);
+        double theta = Math.acos(dot);
+        if (theta < 1.0e-5) {
+            return new float[]{targetYaw, targetPitch};
+        }
+        double sinTheta = Math.sin(theta);
+        double w0 = Math.sin((1.0 - clamped) * theta) / sinTheta;
+        double w1 = Math.sin(clamped * theta) / sinTheta;
+        Vec3 blended = new Vec3(
+                from.xCoord * w0 + to.xCoord * w1,
+                from.yCoord * w0 + to.yCoord * w1,
+                from.zCoord * w0 + to.zCoord * w1
+        );
+        double horizontal = Math.sqrt(blended.xCoord * blended.xCoord + blended.zCoord * blended.zCoord);
+        float yaw = (float) (Math.atan2(blended.zCoord, blended.xCoord) * 180.0 / Math.PI) - 90.0f;
+        float pitch = (float) (-Math.atan2(blended.yCoord, horizontal) * 180.0 / Math.PI);
+        return new float[]{yaw, pitch};
+    }
+
+    public static Vec3 yawPitchToVector(float yaw, float pitch) {
+        float yawRad = -yaw * 0.017453292F - (float) Math.PI;
+        float pitchRad = -pitch * 0.017453292F;
+        float cosYaw = MathHelper.cos(yawRad);
+        float sinYaw = MathHelper.sin(yawRad);
+        float cosPitch = -MathHelper.cos(pitchRad);
+        float sinPitch = MathHelper.sin(pitchRad);
+        return new Vec3(sinYaw * cosPitch, sinPitch, cosYaw * cosPitch);
+    }
+
+    public static float levyStep(float alpha, float scale) {
+        float a = Math.max(0.1f, Math.min(2.0f, alpha));
+        double u = ThreadLocalRandom.current().nextGaussian();
+        double v = ThreadLocalRandom.current().nextGaussian();
+        double step = u / Math.pow(Math.abs(v), 1.0 / a);
+        return (float) (step * scale);
+    }
+
     // ==================== Vector/Distance ====================
 
     public static Vec3 clampVecToBox(Vec3 vector, AxisAlignedBB boundingBox) {
