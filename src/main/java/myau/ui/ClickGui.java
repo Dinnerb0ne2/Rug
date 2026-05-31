@@ -86,7 +86,7 @@ public class ClickGui extends GuiScreen {
     private float moduleScroll = 0.0f;
 
     private Module selectedModule;
-    private Module.Category selectedCategory = null;
+    private Category selectedCategory = null;
     private Property<?> currentDraggingSlider = null;
 
     private final HashMap<TextProperty, GuiTextField> textFieldMap = new HashMap<>();
@@ -96,7 +96,19 @@ public class ClickGui extends GuiScreen {
     private final File configFile = new File("./config/Myau/", "clickgui.txt");
     private static ClickGui instance;
 
-    private final Map<Module.Category, List<Module>> categoryModules = new LinkedHashMap<>();
+    public enum Category {
+        COMBAT("Combat"),
+        MOVEMENT("Movement"),
+        RENDER("Render"),
+        PLAYER("Player"),
+        MISC("Misc");
+
+        private final String displayName;
+        Category(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
+    }
+
+    private final Map<Category, List<Module>> categoryModules = new LinkedHashMap<>();
     private final Set<Module> hiddenModules = new HashSet<>();
 
     private static class ColorPickerState {
@@ -126,21 +138,92 @@ public class ClickGui extends GuiScreen {
     }
 
     private void initCategories() {
-        List<Module> combatModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.COMBAT)
-        );
-        List<Module> movementModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.MOVEMENT)
-        );
-        List<Module> renderModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.RENDER)
-        );
-        List<Module> playerModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.PLAYER)
-        );
-        List<Module> miscModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.MISC)
-        );
+        List<Module> combatModules = new ArrayList<>();
+        combatModules.add(Myau.moduleManager.getModule(AimAssist.class));
+        combatModules.add(Myau.moduleManager.getModule(AutoClicker.class));
+        combatModules.add(Myau.moduleManager.getModule(KillAura.class));
+        combatModules.add(Myau.moduleManager.getModule(Wtap.class));
+        combatModules.add(Myau.moduleManager.getModule(BackTrack.class));
+        combatModules.add(Myau.moduleManager.getModule(Velocity.class));
+        combatModules.add(Myau.moduleManager.getModule(Freeze.class));
+        combatModules.add(Myau.moduleManager.getModule(Reach.class));
+        combatModules.add(Myau.moduleManager.getModule(TargetStrafe.class));
+        combatModules.add(Myau.moduleManager.getModule(NoHitDelay.class));
+        combatModules.add(Myau.moduleManager.getModule(AntiFireball.class));
+        combatModules.add(Myau.moduleManager.getModule(LagRange.class));
+        combatModules.add(Myau.moduleManager.getModule(HitBox.class));
+        combatModules.add(Myau.moduleManager.getModule(MoreKB.class));
+        combatModules.add(Myau.moduleManager.getModule(Refill.class));
+        combatModules.add(Myau.moduleManager.getModule(HitSelect.class));
+
+        List<Module> movementModules = new ArrayList<>();
+        movementModules.add(Myau.moduleManager.getModule(AntiAFK.class));
+        movementModules.add(Myau.moduleManager.getModule(Fly.class));
+        movementModules.add(Myau.moduleManager.getModule(Speed.class));
+        movementModules.add(Myau.moduleManager.getModule(LongJump.class));
+        movementModules.add(Myau.moduleManager.getModule(Sprint.class));
+        movementModules.add(Myau.moduleManager.getModule(SafeWalk.class));
+        movementModules.add(Myau.moduleManager.getModule(Jesus.class));
+        movementModules.add(Myau.moduleManager.getModule(Blink.class));
+        movementModules.add(Myau.moduleManager.getModule(NoFall.class));
+        movementModules.add(Myau.moduleManager.getModule(NoSlow.class));
+        movementModules.add(Myau.moduleManager.getModule(KeepSprint.class));
+        movementModules.add(Myau.moduleManager.getModule(Eagle.class));
+        movementModules.add(Myau.moduleManager.getModule(NoJumpDelay.class));
+        movementModules.add(Myau.moduleManager.getModule(AntiVoid.class));
+
+        List<Module> renderModules = new ArrayList<>();
+        renderModules.add(Myau.moduleManager.getModule(ESP.class));
+        renderModules.add(Myau.moduleManager.getModule(Chams.class));
+        renderModules.add(Myau.moduleManager.getModule(FullBright.class));
+        renderModules.add(Myau.moduleManager.getModule(Tracers.class));
+        renderModules.add(Myau.moduleManager.getModule(NameTags.class));
+        renderModules.add(Myau.moduleManager.getModule(Xray.class));
+        renderModules.add(Myau.moduleManager.getModule(ItemPhysics.class));
+        renderModules.add(Myau.moduleManager.getModule(TargetHUD.class));
+        renderModules.add(Myau.moduleManager.getModule(Indicators.class));
+        renderModules.add(Myau.moduleManager.getModule(BedESP.class));
+        renderModules.add(Myau.moduleManager.getModule(ItemESP.class));
+        renderModules.add(Myau.moduleManager.getModule(ViewClip.class));
+        renderModules.add(Myau.moduleManager.getModule(NoHurtCam.class));
+        renderModules.add(Myau.moduleManager.getModule(HUD.class));
+        renderModules.add(Myau.moduleManager.getModule(GuiModule.class));
+        renderModules.add(Myau.moduleManager.getModule(ChestESP.class));
+        renderModules.add(Myau.moduleManager.getModule(Trajectories.class));
+        renderModules.add(Myau.moduleManager.getModule(Radar.class));
+
+        List<Module> playerModules = new ArrayList<>();
+        playerModules.add(Myau.moduleManager.getModule(AutoHeal.class));
+        playerModules.add(Myau.moduleManager.getModule(AutoTool.class));
+        playerModules.add(Myau.moduleManager.getModule(ChestStealer.class));
+        playerModules.add(Myau.moduleManager.getModule(InvManager.class));
+        playerModules.add(Myau.moduleManager.getModule(InvWalk.class));
+        playerModules.add(Myau.moduleManager.getModule(Scaffold.class));
+        playerModules.add(Myau.moduleManager.getModule(AutoBlockIn.class));
+        playerModules.add(Myau.moduleManager.getModule(SpeedMine.class));
+        playerModules.add(Myau.moduleManager.getModule(FastPlace.class));
+        playerModules.add(Myau.moduleManager.getModule(GhostHand.class));
+        playerModules.add(Myau.moduleManager.getModule(MCF.class));
+        playerModules.add(Myau.moduleManager.getModule(AntiDebuff.class));
+
+        List<Module> miscModules = new ArrayList<>();
+        miscModules.add(Myau.moduleManager.getModule(Spammer.class));
+        miscModules.add(Myau.moduleManager.getModule(BedNuker.class));
+        miscModules.add(Myau.moduleManager.getModule(BedTracker.class));
+        miscModules.add(Myau.moduleManager.getModule(LightningTracker.class));
+        miscModules.add(Myau.moduleManager.getModule(NoRotate.class));
+        miscModules.add(Myau.moduleManager.getModule(NickHider.class));
+        miscModules.add(Myau.moduleManager.getModule(AntiObbyTrap.class));
+        miscModules.add(Myau.moduleManager.getModule(AntiObfuscate.class));
+        miscModules.add(Myau.moduleManager.getModule(AutoAnduril.class));
+        miscModules.add(Myau.moduleManager.getModule(InventoryClicker.class));
+        miscModules.add(Myau.moduleManager.getModule(ExploitFixer.class));
+
+        combatModules.removeIf(m -> m == null);
+        movementModules.removeIf(m -> m == null);
+        renderModules.removeIf(m -> m == null);
+        playerModules.removeIf(m -> m == null);
+        miscModules.removeIf(m -> m == null);
 
         Comparator<Module> comparator = Comparator.comparing(m -> m.getName().toLowerCase());
         combatModules.sort(comparator);
@@ -162,16 +245,16 @@ public class ClickGui extends GuiScreen {
             }
         }
 
-        categoryModules.put(Module.Category.COMBAT, combatModules);
-        categoryModules.put(Module.Category.MOVEMENT, movementModules);
-        categoryModules.put(Module.Category.RENDER, renderModules);
-        categoryModules.put(Module.Category.PLAYER, playerModules);
-        categoryModules.put(Module.Category.MISC, miscModules);
+        categoryModules.put(Category.COMBAT, combatModules);
+        categoryModules.put(Category.MOVEMENT, movementModules);
+        categoryModules.put(Category.RENDER, renderModules);
+        categoryModules.put(Category.PLAYER, playerModules);
+        categoryModules.put(Category.MISC, miscModules);
     }
 
     private void restoreLastState() {
         if (lastCategory != null) {
-            for (Module.Category cat : Module.Category.values()) {
+            for (Category cat : Category.values()) {
                 if (cat.name().equals(lastCategory)) {
                     selectedCategory = cat;
                     break;
@@ -365,7 +448,7 @@ public class ClickGui extends GuiScreen {
     private void renderCategories(int mouseX, int mouseY, int mouseButton, GuiEvent event) {
         float categoryX = posX + CATEGORY_OFFSET_X + 15.0f;
 
-        for (Module.Category category : Module.Category.values()) {
+        for (Category category : Category.values()) {
             float categoryWidth = mc.fontRendererObj.getStringWidth(category.getDisplayName());
             float categoryHeight = mc.fontRendererObj.FONT_HEIGHT;
 
@@ -998,7 +1081,7 @@ public class ClickGui extends GuiScreen {
             if (json.has("y")) posY = json.get("y").getAsFloat();
             if (json.has("category")) {
                 String catName = json.get("category").getAsString();
-                for (Module.Category cat : Module.Category.values()) {
+                for (Category cat : Category.values()) {
                     if (cat.name().equals(catName)) {
                         selectedCategory = cat;
                         break;
