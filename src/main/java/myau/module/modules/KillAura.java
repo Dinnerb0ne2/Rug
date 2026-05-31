@@ -67,11 +67,14 @@ public class KillAura extends Module {
     private float saTemperature = 0.0f;
     private boolean saActive = false;
 
+    private boolean wasRotating = false;
     private boolean isReturning = false;
     private float returnYaw = 0.0f;
     private float returnPitch = 0.0f;
 
     private float perlinTimeAccumulator = 0.0F;
+    private float noiseFatigue = 0.0f;
+    private int lastTargetEntityId = -1;
 
     public final ModeProperty mode;
     public final ModeProperty sort;
@@ -96,16 +99,20 @@ public class KillAura extends Module {
     public final FloatProperty smoothBackSpeed;
 
     public final BooleanProperty bestHitVec;
+    public final FloatProperty predictionTicks;
 
     public final ModeProperty noiseMode;
-    public final FloatProperty noiseScale;
-    public final FloatProperty pitchRatio;
+    public final FloatProperty noiseBaseScale;
+    public final FloatProperty noiseFatigueScale;
+    public final FloatProperty noisePitchRatio;
     public final FloatProperty noiseFrequency;
-    public final FloatProperty yawBias;
-    public final FloatProperty pitchBias;
-    public final BooleanProperty distanceScale;
-    public final FloatProperty microJitter;
-    public final BooleanProperty gcdQuantize;
+    public final FloatProperty noiseFatigueRate;
+    public final FloatProperty noiseRecoveryRate;
+    public final FloatProperty noiseYawBias;
+    public final FloatProperty noisePitchBias;
+    public final BooleanProperty noiseDistanceScale;
+    public final FloatProperty noiseMicroJitter;
+    public final BooleanProperty noiseGcdQuantize;
 
     public final BooleanProperty throughWalls;
     public final BooleanProperty requirePress;
@@ -144,69 +151,76 @@ public class KillAura extends Module {
         return 1000L / RandomUtil.nextLong(this.minCPS.getValue(), this.maxCPS.getValue());
     }
 
-    private float[] getNoiseOffset() {
+    private float[] getDynamicRecoveryNoiseOffset() {
         if (this.noiseMode.getValue() == 0) return new float[]{0.0f, 0.0f};
-
-        float scale = this.noiseScale.getValue();
-        float pRatio = this.pitchRatio.getValue();
+        float effectiveScale = this.noiseBaseScale.getValue() + this.noiseFatigueScale.getValue() * this.noiseFatigue;
+        float pRatio = this.noisePitchRatio.getValue();
         float time = this.perlinTimeAccumulator;
         float freq = this.noiseFrequency.getValue();
-
-        if (this.distanceScale.getValue() && this.target != null) {
+        if (this.noiseDistanceScale.getValue() && this.target != null) {
             double dist = RotationUtil.distanceToBox(this.target.getBox());
-            scale *= (float) Math.max(1.0, 0.6 + dist / 3.0);
+            effectiveScale *= (float) Math.max(1.0, 0.6 + dist / 3.0);
         }
-
-        float yawOffset = 0.0f;
-        float pitchOffset = 0.0f;
-
+        float fatigueFactor = 0.3f + 0.7f * this.noiseFatigue;
+        float yawOffset = 0.0f, pitchOffset = 0.0f;
         switch (this.noiseMode.getValue()) {
-            case 1: // GAUSSIAN
-                yawOffset = RotationUtil.getGaussianNoise() * scale;
-                pitchOffset = RotationUtil.getGaussianNoise() * scale * pRatio;
+            case 1:
+                yawOffset = RotationUtil.getGaussianNoise() * effectiveScale * fatigueFactor;
+                pitchOffset = RotationUtil.getGaussianNoise() * effectiveScale * pRatio * fatigueFactor;
                 break;
-            case 2: // PERLIN
-                yawOffset = RotationUtil.getPerlinNoise(time, 0.0f) * scale;
-                pitchOffset = RotationUtil.getPerlinNoise(time, 100.0f) * scale * pRatio;
+            case 2:
+                yawOffset = RotationUtil.getPerlinNoise(time, 0.0f) * effectiveScale * fatigueFactor;
+                pitchOffset = RotationUtil.getPerlinNoise(time, 100.0f) * effectiveScale * pRatio * fatigueFactor;
                 break;
-            case 3: // WAVE
-                yawOffset = RotationUtil.getWaveNoise(time, freq) * scale;
-                pitchOffset = RotationUtil.getWaveNoise(time + 50.0f, freq) * scale * pRatio;
+            case 3:
+                yawOffset = RotationUtil.getWaveNoise(time, freq) * effectiveScale * fatigueFactor;
+                pitchOffset = RotationUtil.getWaveNoise(time + 50.0f, freq) * effectiveScale * pRatio * fatigueFactor;
                 break;
-            case 4: // HYBRID: Perlin 40% + Wave 25% + Gaussian 35%
-                float perlinYaw = RotationUtil.getPerlinNoise(time, 0.0f);
-                float perlinPitch = RotationUtil.getPerlinNoise(time, 100.0f);
-                float waveYaw = RotationUtil.getWaveNoise(time, freq);
-                float wavePitch = RotationUtil.getWaveNoise(time + 50.0f, freq);
-                float gaussYaw = RotationUtil.getGaussianNoise();
-                float gaussPitch = RotationUtil.getGaussianNoise();
-                yawOffset = (perlinYaw * 0.4f + waveYaw * 0.25f + gaussYaw * 0.35f) * scale;
-                pitchOffset = (perlinPitch * 0.4f + wavePitch * 0.25f + gaussPitch * 0.35f) * scale * pRatio;
+            case 4:
+                float pY = RotationUtil.getPerlinNoise(time, 0.0f);
+                float pP = RotationUtil.getPerlinNoise(time, 100.0f);
+                float wY = RotationUtil.getWaveNoise(time, freq);
+                float wP = RotationUtil.getWaveNoise(time + 50.0f, freq);
+                float gY = RotationUtil.getGaussianNoise();
+                float gP = RotationUtil.getGaussianNoise();
+                yawOffset = (pY * 0.4f + wY * 0.25f + gY * 0.35f) * effectiveScale * fatigueFactor;
+                pitchOffset = (pP * 0.4f + wP * 0.25f + gP * 0.35f) * effectiveScale * pRatio * fatigueFactor;
                 break;
         }
-
-        if (this.microJitter.getValue() > 0.0f) {
-            float jitterTime = time * 4.0f;
-            yawOffset += RotationUtil.getPerlinNoise(jitterTime, 200.0f) * this.microJitter.getValue();
-            pitchOffset += RotationUtil.getPerlinNoise(jitterTime, 300.0f) * this.microJitter.getValue() * pRatio;
+        if (this.noiseMicroJitter.getValue() > 0.0f) {
+            float jitterScale = this.noiseMicroJitter.getValue() * (0.5f + 0.5f * this.noiseFatigue);
+            float jt = time * 4.0f;
+            yawOffset += RotationUtil.getPerlinNoise(jt, 200.0f) * jitterScale;
+            pitchOffset += RotationUtil.getPerlinNoise(jt, 300.0f) * jitterScale * pRatio;
         }
-
-        yawOffset += this.yawBias.getValue();
-        pitchOffset += this.pitchBias.getValue();
-
-        if (this.gcdQuantize.getValue()) {
+        yawOffset += this.noiseYawBias.getValue();
+        pitchOffset += this.noisePitchBias.getValue();
+        if (this.noiseGcdQuantize.getValue()) {
             float gcd = RotationUtil.getSensitivityGCD();
             if (gcd > 0.0f) {
                 yawOffset = Math.round(yawOffset / gcd) * gcd;
                 pitchOffset = Math.round(pitchOffset / gcd) * gcd;
             }
         }
-
         return new float[]{yawOffset, pitchOffset};
+    }
+
+    private void updateNoiseFatigue(boolean inCombat) {
+        if (inCombat) {
+            this.noiseFatigue = Math.min(1.0f, this.noiseFatigue + this.noiseFatigueRate.getValue());
+        } else {
+            this.noiseFatigue *= (1.0f - this.noiseRecoveryRate.getValue());
+            if (this.noiseFatigue < 0.001f) this.noiseFatigue = 0.0f;
+        }
     }
 
     private void handleSmoothBack(UpdateEvent event) {
         if (!this.smoothBackProp.getValue() || (this.rotations.getValue() != 2 && this.rotations.getValue() != 3)) {
+            this.isReturning = false;
+            this.wasRotating = false;
+            return;
+        }
+        if (!this.wasRotating) {
             this.isReturning = false;
             return;
         }
@@ -217,37 +231,40 @@ public class KillAura extends Module {
         }
         float playerYaw = mc.thePlayer.rotationYaw;
         float playerPitch = mc.thePlayer.rotationPitch;
-        float[] backRotations = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, this.smoothBackSpeed.getValue());
-        this.returnYaw = backRotations[0];
-        this.returnPitch = backRotations[1];
-        float yawDiff = Math.abs(MathHelper.wrapAngleTo180_float(playerYaw - this.returnYaw));
-        float pitchDiff = Math.abs(MathHelper.wrapAngleTo180_float(playerPitch - this.returnPitch));
-        if (yawDiff > 1.0f || pitchDiff > 1.0f) {
+        float[] back = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, this.smoothBackSpeed.getValue());
+        this.returnYaw = back[0];
+        this.returnPitch = back[1];
+        float yD = Math.abs(MathHelper.wrapAngleTo180_float(playerYaw - this.returnYaw));
+        float pD = Math.abs(MathHelper.wrapAngleTo180_float(playerPitch - this.returnPitch));
+        if (yD > 1.0f || pD > 1.0f) {
             event.setRotation(this.returnYaw, this.returnPitch, 1);
-            if (this.rotations.getValue() == 3) {
-                Myau.rotationManager.setRotation(this.returnYaw, this.returnPitch, 1, true);
-            }
-            if (this.moveFix.getValue() != 0 || this.rotations.getValue() == 3) {
-                event.setPervRotation(this.returnYaw, 1);
-            }
+            if (this.rotations.getValue() == 3) Myau.rotationManager.setRotation(this.returnYaw, this.returnPitch, 1, true);
+            if (this.moveFix.getValue() != 0 || this.rotations.getValue() == 3) event.setPervRotation(this.returnYaw, 1);
         } else {
             this.isReturning = false;
+            this.wasRotating = false;
         }
     }
 
     private float[] getTargetRotations(float currentYaw, float currentPitch, float maxAngle, float smoothFactor) {
+        float ticks = this.predictionTicks.getValue();
         if (this.bestHitVec.getValue()) {
-            return RotationUtil.getRotationsToBox(this.target.getBox(), currentYaw, currentPitch, maxAngle, smoothFactor);
+            AxisAlignedBB box = this.target.getBox();
+            AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+            return RotationUtil.getRotationsToBox(predBox, currentYaw, currentPitch, maxAngle, smoothFactor);
         } else {
-            return RotationUtil.getRotationsToEntity(this.target.getEntity(), currentYaw, currentPitch, maxAngle, smoothFactor);
+            return RotationUtil.getRotationsToEntity(this.target.getEntity(), currentYaw, currentPitch, maxAngle, smoothFactor, ticks);
         }
     }
 
     private float[] getRawTarget() {
+        float ticks = this.predictionTicks.getValue();
         if (this.bestHitVec.getValue()) {
-            return RotationUtil.getRawTargetBox(this.target.getBox());
+            AxisAlignedBB box = this.target.getBox();
+            AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+            return RotationUtil.getRawTargetBox(predBox);
         } else {
-            return RotationUtil.getRawTargetEntity(this.target.getEntity());
+            return RotationUtil.getRawTargetEntity(this.target.getEntity(), ticks);
         }
     }
 
@@ -258,16 +275,13 @@ public class KillAura extends Module {
             else {
                 this.attackDelayMS += this.getAttackDelay();
                 mc.thePlayer.swingItem();
-                if ((this.rotations.getValue() != 0 || !this.isBoxInAttackRange(this.target.getBox()))
-                        && RotationUtil.rayTrace(this.target.getBox(), yaw, pitch, this.attackRange.getValue()) == null) return false;
+                if ((this.rotations.getValue() != 0 || !this.isBoxInAttackRange(this.target.getBox())) && RotationUtil.rayTrace(this.target.getBox(), yaw, pitch, this.attackRange.getValue()) == null) return false;
                 else {
-                    AttackEvent atkEvent = new AttackEvent(this.target.getEntity());
-                    EventManager.call(atkEvent);
+                    AttackEvent ae = new AttackEvent(this.target.getEntity());
+                    EventManager.call(ae);
                     ((IAccessorPlayerControllerMP) mc.playerController).callSyncCurrentPlayItem();
                     PacketUtil.sendPacket(new C02PacketUseEntity(this.target.getEntity(), Action.ATTACK));
-                    if (mc.playerController.getCurrentGameType() != GameType.SPECTATOR) {
-                        PlayerUtil.attackEntity(this.target.getEntity());
-                    }
+                    if (mc.playerController.getCurrentGameType() != GameType.SPECTATOR) PlayerUtil.attackEntity(this.target.getEntity());
                     this.hitRegistered = true;
                     return true;
                 }
@@ -280,9 +294,9 @@ public class KillAura extends Module {
         this.startBlock(mc.thePlayer.getHeldItem());
     }
 
-    private void startBlock(ItemStack itemStack) {
-        PacketUtil.sendPacket(new C08PacketPlayerBlockPlacement(itemStack));
-        mc.thePlayer.setItemInUse(itemStack, itemStack.getMaxItemUseDuration());
+    private void startBlock(ItemStack is) {
+        PacketUtil.sendPacket(new C08PacketPlayerBlockPlacement(is));
+        mc.thePlayer.setItemInUse(is, is.getMaxItemUseDuration());
         this.blockingState = true;
     }
 
@@ -297,8 +311,7 @@ public class KillAura extends Module {
             MovingObjectPosition mop = RotationUtil.rayTrace(this.target.getBox(), yaw, pitch, 8.0);
             if (mop != null) {
                 ((IAccessorPlayerControllerMP) mc.playerController).callSyncCurrentPlayItem();
-                PacketUtil.sendPacket(new C02PacketUseEntity(this.target.getEntity(),
-                        new Vec3(mop.hitVec.xCoord - this.target.getX(), mop.hitVec.yCoord - this.target.getY(), mop.hitVec.zCoord - this.target.getZ())));
+                PacketUtil.sendPacket(new C02PacketUseEntity(this.target.getEntity(), new Vec3(mop.hitVec.xCoord - this.target.getX(), mop.hitVec.yCoord - this.target.getY(), mop.hitVec.zCoord - this.target.getZ())));
                 PacketUtil.sendPacket(new C02PacketUseEntity(this.target.getEntity(), Action.INTERACT));
                 PacketUtil.sendPacket(new C08PacketPlayerBlockPlacement(mc.thePlayer.getHeldItem()));
                 mc.thePlayer.setItemInUse(mc.thePlayer.getHeldItem(), mc.thePlayer.getHeldItem().getMaxItemUseDuration());
@@ -313,14 +326,14 @@ public class KillAura extends Module {
             if (((IAccessorPlayerControllerMP) mc.playerController).getIsHittingBlock()) return false;
             else if ((ItemUtil.isEating() || ItemUtil.isUsingBow()) && PlayerUtil.isUsingItem()) return false;
             else {
-                AutoHeal autoHeal = (AutoHeal) Myau.moduleManager.modules.get(AutoHeal.class);
-                if (autoHeal.isEnabled() && autoHeal.isSwitching()) return false;
+                AutoHeal ah = (AutoHeal) Myau.moduleManager.modules.get(AutoHeal.class);
+                if (ah.isEnabled() && ah.isSwitching()) return false;
                 else {
-                    BedNuker bedNuker = (BedNuker) Myau.moduleManager.modules.get(BedNuker.class);
-                    AutoBlockIn autoBlockIn = (AutoBlockIn) Myau.moduleManager.modules.get(AutoBlockIn.class);
-                    if (bedNuker.isEnabled() && bedNuker.isReady()) return false;
+                    BedNuker bn = (BedNuker) Myau.moduleManager.modules.get(BedNuker.class);
+                    AutoBlockIn abi = (AutoBlockIn) Myau.moduleManager.modules.get(AutoBlockIn.class);
+                    if (bn.isEnabled() && bn.isReady()) return false;
                     else if (Myau.moduleManager.modules.get(Scaffold.class).isEnabled()) return false;
-                    else if (autoBlockIn.isEnabled()) return false;
+                    else if (abi.isEnabled()) return false;
                     else if (this.requirePress.getValue()) return PlayerUtil.isAttacking();
                     else return !this.allowMining.getValue() || !mc.objectMouseOver.typeOfHit.equals(MovingObjectType.BLOCK) || !PlayerUtil.isAttacking();
                 }
@@ -331,8 +344,7 @@ public class KillAura extends Module {
     private boolean canAutoBlock() { return ItemUtil.isHoldingSword(); }
 
     private boolean hasValidTarget() {
-        return mc.theWorld.loadedEntityList.stream().anyMatch(
-                entity -> entity instanceof EntityLivingBase && this.isValidTarget((EntityLivingBase) entity) && this.isInSwingRange((EntityLivingBase) entity));
+        return mc.theWorld.loadedEntityList.stream().anyMatch(e -> e instanceof EntityLivingBase && this.isValidTarget((EntityLivingBase) e) && this.isInSwingRange((EntityLivingBase) e));
     }
 
     private boolean isValidTarget(EntityLivingBase e) {
@@ -364,17 +376,6 @@ public class KillAura extends Module {
     private boolean isBoxInAttackRange(AxisAlignedBB bb) { return RotationUtil.distanceToBox(bb) <= (double) this.attackRange.getValue(); }
     private boolean isPlayerTarget(EntityLivingBase e) { return e instanceof EntityPlayer && TeamUtil.isTarget((EntityPlayer) e); }
 
-    private int findEmptySlot(int currentSlot) {
-        for (int i = 0; i < 9; i++) if (i != currentSlot && mc.thePlayer.inventory.getStackInSlot(i) == null) return i;
-        for (int i = 0; i < 9; i++) if (i != currentSlot) { ItemStack s = mc.thePlayer.inventory.getStackInSlot(i); if (s != null && !s.hasDisplayName()) return i; }
-        return Math.floorMod(currentSlot - 1, 9);
-    }
-
-    private int findSwordSlot(int currentSlot) {
-        for (int i = 0; i < 9; i++) if (i != currentSlot) { ItemStack item = mc.thePlayer.inventory.getStackInSlot(i); if (item != null && item.getItem() instanceof ItemSword) return i; }
-        return -1;
-    }
-
     public KillAura() {
         super("KillAura", false);
         this.lastTickProcessed = 0;
@@ -390,28 +391,27 @@ public class KillAura extends Module {
         this.rotations = new ModeProperty("rotations", 2, new String[]{"NONE", "LEGIT", "SILENT", "LOCK_VIEW"});
         this.moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT", "STRICT"});
         this.smoothing = new PercentProperty("smoothing", 0);
-
         this.rotationMode = new ModeProperty("rotation-mode", 0, new String[]{"BASIC", "SA"});
         this.saInitTemp = new FloatProperty("sa-init-temp", 5.0F, 0.5F, 20.0F, () -> this.rotationMode.getValue() == 1);
         this.saCoolingRate = new FloatProperty("sa-cooling", 0.92F, 0.80F, 0.99F, () -> this.rotationMode.getValue() == 1);
         this.saMinTemp = new FloatProperty("sa-min-temp", 0.1F, 0.0F, 2.0F, () -> this.rotationMode.getValue() == 1);
         this.saResetThreshold = new FloatProperty("sa-reset", 50.0F, 10.0F, 180.0F, () -> this.rotationMode.getValue() == 1);
-
         this.smoothBackProp = new BooleanProperty("smooth-back", true);
         this.smoothBackSpeed = new FloatProperty("smooth-back-speed", 0.3F, 0.05F, 1.0F);
-
         this.bestHitVec = new BooleanProperty("best-hit-vec", true);
-
+        this.predictionTicks = new FloatProperty("prediction", 1.5F, 0.0F, 5.0F);
         this.noiseMode = new ModeProperty("noise-mode", 0, new String[]{"NONE", "GAUSSIAN", "PERLIN", "WAVE", "HYBRID"});
-        this.noiseScale = new FloatProperty("noise-scale", 2.0F, 0.0F, 15.0F);
-        this.pitchRatio = new FloatProperty("pitch-ratio", 0.7F, 0.1F, 2.0F);
+        this.noiseBaseScale = new FloatProperty("noise-base-scale", 0.5F, 0.0F, 5.0F);
+        this.noiseFatigueScale = new FloatProperty("noise-fatigue-scale", 3.0F, 0.0F, 15.0F);
+        this.noisePitchRatio = new FloatProperty("noise-pitch-ratio", 0.7F, 0.1F, 2.0F);
         this.noiseFrequency = new FloatProperty("noise-freq", 1.0F, 0.01F, 5.0F);
-        this.yawBias = new FloatProperty("yaw-bias", 0.0F, -5.0F, 5.0F);
-        this.pitchBias = new FloatProperty("pitch-bias", 0.0F, -5.0F, 5.0F);
-        this.distanceScale = new BooleanProperty("distance-scale", true);
-        this.microJitter = new FloatProperty("micro-jitter", 0.3F, 0.0F, 3.0F);
-        this.gcdQuantize = new BooleanProperty("gcd-quantize", true);
-
+        this.noiseFatigueRate = new FloatProperty("noise-fatigue-rate", 0.005F, 0.001F, 0.05F);
+        this.noiseRecoveryRate = new FloatProperty("noise-recovery-rate", 0.003F, 0.001F, 0.02F);
+        this.noiseYawBias = new FloatProperty("noise-yaw-bias", 0.0F, -5.0F, 5.0F);
+        this.noisePitchBias = new FloatProperty("noise-pitch-bias", 0.0F, -5.0F, 5.0F);
+        this.noiseDistanceScale = new BooleanProperty("noise-distance-scale", true);
+        this.noiseMicroJitter = new FloatProperty("noise-micro-jitter", 0.3F, 0.0F, 3.0F);
+        this.noiseGcdQuantize = new BooleanProperty("noise-gcd-quantize", true);
         this.throughWalls = new BooleanProperty("through-walls", true);
         this.requirePress = new BooleanProperty("require-press", false);
         this.allowMining = new BooleanProperty("allow-mining", true);
@@ -436,26 +436,26 @@ public class KillAura extends Module {
     public EntityLivingBase getTarget() { return this.target != null ? this.target.getEntity() : null; }
 
     public boolean isAttackAllowed() {
-        Scaffold scaffold = (Scaffold) Myau.moduleManager.modules.get(Scaffold.class);
-        if (scaffold.isEnabled()) return false;
+        Scaffold sc = (Scaffold) Myau.moduleManager.modules.get(Scaffold.class);
+        if (sc.isEnabled()) return false;
         else if (!this.weaponsOnly.getValue() || ItemUtil.hasRawUnbreakingEnchant() || this.allowTools.getValue() && ItemUtil.isHoldingTool())
             return !this.requirePress.getValue() || KeyBindUtil.isKeyDown(mc.gameSettings.keyBindAttack.getKeyCode());
         else return false;
     }
 
-    public boolean shouldAutoBlock() {
-        return this.isPlayerBlocking() && this.isBlocking && this.autoBlock.getValue() == 1;
-    }
-
+    public boolean shouldAutoBlock() { return this.isPlayerBlocking() && this.isBlocking && this.autoBlock.getValue() == 1; }
     public boolean isBlocking() { return this.fakeBlockState && ItemUtil.isHoldingSword(); }
     public boolean isPlayerBlocking() { return (mc.thePlayer.isUsingItem() || this.blockingState) && ItemUtil.isHoldingSword(); }
 
     @EventTarget(Priority.LOW)
     public void onUpdate(UpdateEvent event) {
         if (!this.isEnabled() || event.getType() != EventType.PRE) return;
-
-        this.perlinTimeAccumulator += this.noiseFrequency.getValue() * 0.05F;
+        if (this.noiseMode.getValue() != 0) {
+            this.perlinTimeAccumulator += this.noiseFrequency.getValue() * 0.05F + 0.02F * this.noiseFatigue;
+        }
         if (this.attackDelayMS > 0L) this.attackDelayMS -= 50L;
+
+        this.updateNoiseFatigue(this.target != null);
 
         boolean attack = this.target != null && this.canAttack();
         boolean block = attack && this.canAutoBlock();
@@ -470,41 +470,20 @@ public class KillAura extends Module {
             if (block) {
                 switch (this.autoBlock.getValue()) {
                     case 0:
-                        if (PlayerUtil.isUsingItem()) {
-                            this.isBlocking = true;
-                            if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true;
-                        } else {
-                            this.isBlocking = false;
-                            if (this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) this.stopBlock();
-                        }
-                        Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
-                        this.fakeBlockState = false;
-                        break;
+                        if (PlayerUtil.isUsingItem()) { this.isBlocking = true; if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true; }
+                        else { this.isBlocking = false; if (this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) this.stopBlock(); }
+                        Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.fakeBlockState = false; break;
                     case 1:
-                        if (this.hasValidTarget()) {
-                            if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true;
-                            Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
-                            this.isBlocking = true;
-                            this.fakeBlockState = false;
-                        } else {
-                            Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
-                            this.isBlocking = false;
-                            this.fakeBlockState = false;
-                        }
-                        break;
+                        if (this.hasValidTarget()) { if (!this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true; Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.isBlocking = true; this.fakeBlockState = false; }
+                        else { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.isBlocking = false; this.fakeBlockState = false; } break;
                     case 2:
-                        Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
-                        this.isBlocking = false;
-                        this.fakeBlockState = this.hasValidTarget();
-                        if (PlayerUtil.isUsingItem() && !this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true;
-                        break;
+                        Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.isBlocking = false; this.fakeBlockState = this.hasValidTarget();
+                        if (PlayerUtil.isUsingItem() && !this.isPlayerBlocking() && !Myau.playerStateManager.digging && !Myau.playerStateManager.placing) swap = true; break;
                 }
             }
 
             boolean attacked = false;
             if (this.isBoxInSwingRange(this.target.getBox())) {
-                this.isReturning = false;
-
                 float smoothFactor = (float) this.smoothing.getValue() / 100.0F;
                 float[] targetRotations;
 
@@ -514,28 +493,18 @@ public class KillAura extends Module {
                     float[] rawTarget = this.getRawTarget();
                     float deltaYaw = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[0] - event.getYaw()));
                     float deltaPitch = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[1] - event.getPitch()));
-
                     if (!this.saActive || deltaYaw > this.saResetThreshold.getValue() || deltaPitch > this.saResetThreshold.getValue()) {
                         this.saTemperature = this.saInitTemp.getValue();
                         this.saActive = true;
                     }
-
-                    targetRotations = RotationUtil.simulatedAnnealingStep(
-                            event.getYaw(), event.getPitch(),
-                            rawTarget[0], rawTarget[1],
-                            this.saTemperature, smoothFactor
-                    );
-
-                    this.saTemperature *= this.saCoolingRate.getValue();
-                    if (this.saTemperature < this.saMinTemp.getValue()) {
-                        this.saTemperature = this.saMinTemp.getValue();
-                    }
+                    targetRotations = RotationUtil.simulatedAnnealingStep(event.getYaw(), event.getPitch(), rawTarget[0], rawTarget[1], this.saTemperature, smoothFactor);
+                    this.saTemperature = Math.max(this.saMinTemp.getValue(), this.saTemperature * this.saCoolingRate.getValue());
                 }
 
                 if (this.noiseMode.getValue() != 0) {
-                    float[] noiseOffset = this.getNoiseOffset();
-                    targetRotations[0] += noiseOffset[0];
-                    targetRotations[1] += noiseOffset[1];
+                    float[] n = this.getDynamicRecoveryNoiseOffset();
+                    targetRotations[0] += n[0];
+                    targetRotations[1] += n[1];
                 }
 
                 attackRotations = targetRotations;
@@ -543,6 +512,7 @@ public class KillAura extends Module {
                     event.setRotation(targetRotations[0], targetRotations[1], 1);
                     if (this.rotations.getValue() == 3) Myau.rotationManager.setRotation(targetRotations[0], targetRotations[1], 1, true);
                     if (this.moveFix.getValue() != 0 || this.rotations.getValue() == 3) event.setPervRotation(targetRotations[0], 1);
+                    this.wasRotating = true;
                 }
                 if (attack) attacked = this.performAttack(event.getNewYaw(), event.getNewPitch());
             } else {
@@ -551,10 +521,7 @@ public class KillAura extends Module {
                 this.handleSmoothBack(event);
             }
 
-            if (swap) {
-                if (attacked) this.interactAttack(event.getNewYaw(), event.getNewPitch());
-                else this.sendUseItem();
-            }
+            if (swap) { if (attacked) this.interactAttack(event.getNewYaw(), event.getNewPitch()); else this.sendUseItem(); }
         } else {
             attackRotations = null;
             this.saActive = false;
@@ -567,40 +534,34 @@ public class KillAura extends Module {
         if (!this.isEnabled()) return;
         switch (event.getType()) {
             case PRE:
-                if (this.target == null || !this.isValidTarget(this.target.getEntity())
-                        || !this.isBoxInAttackRange(this.target.getBox()) || !this.isBoxInSwingRange(this.target.getBox())
-                        || this.timer.hasTimeElapsed(this.switchDelay.getValue().longValue())) {
+                if (this.target == null || !this.isValidTarget(this.target.getEntity()) || !this.isBoxInAttackRange(this.target.getBox()) || !this.isBoxInSwingRange(this.target.getBox()) || this.timer.hasTimeElapsed(this.switchDelay.getValue().longValue())) {
                     this.timer.reset();
                     ArrayList<EntityLivingBase> targets = new ArrayList<>();
-                    for (Entity entity : mc.theWorld.loadedEntityList) {
-                        if (entity instanceof EntityLivingBase && this.isValidTarget((EntityLivingBase) entity) && this.isInRange((EntityLivingBase) entity))
-                            targets.add((EntityLivingBase) entity);
-                    }
-                    if (targets.isEmpty()) {
-                        this.target = null;
-                    } else {
+                    for (Entity en : mc.theWorld.loadedEntityList) if (en instanceof EntityLivingBase && this.isValidTarget((EntityLivingBase) en) && this.isInRange((EntityLivingBase) en)) targets.add((EntityLivingBase) en);
+                    if (targets.isEmpty()) { this.target = null; }
+                    else {
                         if (targets.stream().anyMatch(this::isInSwingRange)) targets.removeIf(e -> !this.isInSwingRange(e));
                         if (targets.stream().anyMatch(this::isInAttackRange)) targets.removeIf(e -> !this.isInAttackRange(e));
                         if (targets.stream().anyMatch(this::isPlayerTarget)) targets.removeIf(e -> !this.isPlayerTarget(e));
-                        targets.sort((e1, e2) -> {
-                            int sortBase = 0;
-                            switch (this.sort.getValue()) {
-                                case 1: sortBase = Float.compare(TeamUtil.getHealthScore(e1), TeamUtil.getHealthScore(e2)); break;
-                                case 2: sortBase = Integer.compare(e1.hurtResistantTime, e2.hurtResistantTime); break;
-                                case 3: sortBase = Float.compare(RotationUtil.angleToEntity(e1), RotationUtil.angleToEntity(e2)); break;
-                            }
-                            return sortBase != 0 ? sortBase : Double.compare(RotationUtil.distanceToEntity(e1), RotationUtil.distanceToEntity(e2));
-                        });
+                        targets.sort((e1, e2) -> { int s = 0; switch (this.sort.getValue()) { case 1: s = Float.compare(TeamUtil.getHealthScore(e1), TeamUtil.getHealthScore(e2)); break; case 2: s = Integer.compare(e1.hurtResistantTime, e2.hurtResistantTime); break; case 3: s = Float.compare(RotationUtil.angleToEntity(e1), RotationUtil.angleToEntity(e2)); break; } return s != 0 ? s : Double.compare(RotationUtil.distanceToEntity(e1), RotationUtil.distanceToEntity(e2)); });
                         if (this.mode.getValue() == 1 && this.hitRegistered) { this.hitRegistered = false; this.switchTick++; }
                         if (this.mode.getValue() == 0 || this.switchTick >= targets.size()) this.switchTick = 0;
                         this.target = new AttackData(targets.get(this.switchTick));
                     }
                 }
-                if (this.target != null) this.target = new AttackData(this.target.getEntity());
+                if (this.target != null) {
+                    int currentTargetId = this.target.getEntity().getEntityId();
+                    if (currentTargetId != this.lastTargetEntityId) {
+                        this.noiseFatigue *= 0.6f;
+                        this.lastTargetEntityId = currentTargetId;
+                    }
+                    this.target = new AttackData(this.target.getEntity());
+                } else {
+                    this.lastTargetEntityId = -1;
+                }
                 break;
             case POST:
-                if (this.isPlayerBlocking() && !mc.thePlayer.isBlocking())
-                    mc.thePlayer.setItemInUse(mc.thePlayer.getHeldItem(), mc.thePlayer.getHeldItem().getMaxItemUseDuration());
+                if (this.isPlayerBlocking() && !mc.thePlayer.isBlocking()) mc.thePlayer.setItemInUse(mc.thePlayer.getHeldItem(), mc.thePlayer.getHeldItem().getMaxItemUseDuration());
                 break;
         }
     }
@@ -608,36 +569,11 @@ public class KillAura extends Module {
     @EventTarget(Priority.LOWEST)
     public void onPacket(PacketEvent event) {
         if (!this.isEnabled() || !event.isCancelled() && mc.thePlayer != null && mc.theWorld != null) {
-            if (event.getPacket() instanceof C07PacketPlayerDigging) {
-                C07PacketPlayerDigging packet = (C07PacketPlayerDigging) event.getPacket();
-                if (packet.getStatus() == C07PacketPlayerDigging.Action.RELEASE_USE_ITEM) this.blockingState = false;
-            }
-            if (event.getPacket() instanceof C09PacketHeldItemChange) {
-                this.blockingState = false;
-                if (this.isBlocking) mc.thePlayer.stopUsingItem();
-            }
+            if (event.getPacket() instanceof C07PacketPlayerDigging) { if (((C07PacketPlayerDigging) event.getPacket()).getStatus() == C07PacketPlayerDigging.Action.RELEASE_USE_ITEM) this.blockingState = false; }
+            if (event.getPacket() instanceof C09PacketHeldItemChange) { this.blockingState = false; if (this.isBlocking) mc.thePlayer.stopUsingItem(); }
             if (this.debugLog.getValue() == 1 && this.isAttackAllowed()) {
-                if (event.getPacket() instanceof S06PacketUpdateHealth) {
-                    float packet = ((S06PacketUpdateHealth) event.getPacket()).getHealth() - mc.thePlayer.getHealth();
-                    if (packet != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) {
-                        this.lastTickProcessed = mc.thePlayer.ticksExisted;
-                        ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, packet > 0.0F ? "&a" : "&c", df.format(packet), mc.thePlayer.ticksExisted));
-                    }
-                }
-                if (event.getPacket() instanceof S1CPacketEntityMetadata) {
-                    S1CPacketEntityMetadata packet = (S1CPacketEntityMetadata) event.getPacket();
-                    if (packet.getEntityId() == mc.thePlayer.getEntityId()) {
-                        for (WatchableObject wo : packet.func_149376_c()) {
-                            if (wo.getDataValueId() == 6) {
-                                float diff = (Float) wo.getObject() - mc.thePlayer.getHealth();
-                                if (diff != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) {
-                                    this.lastTickProcessed = mc.thePlayer.ticksExisted;
-                                    ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, diff > 0.0F ? "&a" : "&c", df.format(diff), mc.thePlayer.ticksExisted));
-                                }
-                            }
-                        }
-                    }
-                }
+                if (event.getPacket() instanceof S06PacketUpdateHealth) { float p = ((S06PacketUpdateHealth) event.getPacket()).getHealth() - mc.thePlayer.getHealth(); if (p != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) { this.lastTickProcessed = mc.thePlayer.ticksExisted; ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, p > 0.0F ? "&a" : "&c", df.format(p), mc.thePlayer.ticksExisted)); } }
+                if (event.getPacket() instanceof S1CPacketEntityMetadata) { S1CPacketEntityMetadata pk = (S1CPacketEntityMetadata) event.getPacket(); if (pk.getEntityId() == mc.thePlayer.getEntityId()) { for (WatchableObject wo : pk.func_149376_c()) { if (wo.getDataValueId() == 6) { float d = (Float) wo.getObject() - mc.thePlayer.getHealth(); if (d != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) { this.lastTickProcessed = mc.thePlayer.ticksExisted; ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, d > 0.0F ? "&a" : "&c", df.format(d), mc.thePlayer.ticksExisted)); } } } } }
             }
         }
     }
@@ -645,8 +581,7 @@ public class KillAura extends Module {
     @EventTarget
     public void onMove(MoveInputEvent event) {
         if (this.isEnabled()) {
-            if (this.moveFix.getValue() == 1 && this.rotations.getValue() != 3 && RotationState.isActived() && RotationState.getPriority() == 1.0F && MoveUtil.isForwardPressed())
-                MoveUtil.fixStrafe(RotationState.getSmoothedYaw());
+            if (this.moveFix.getValue() == 1 && this.rotations.getValue() != 3 && RotationState.isActived() && RotationState.getPriority() == 1.0F && MoveUtil.isForwardPressed()) MoveUtil.fixStrafe(RotationState.getSmoothedYaw());
             if (this.shouldAutoBlock()) mc.thePlayer.movementInput.jump = false;
         }
     }
@@ -655,52 +590,23 @@ public class KillAura extends Module {
     public void onRender(Render3DEvent event) {
         if (!this.isEnabled() || target == null) return;
         if (this.showTarget.getValue() != 0 && TeamUtil.isEntityLoaded(this.target.getEntity()) && this.isAttackAllowed()) {
-            Color color = new Color(-1);
-            switch (this.showTarget.getValue()) {
-                case 1: color = this.target.getEntity().hurtTime > 0 ? new Color(16733525) : new Color(5635925); break;
-                case 2: color = ((HUD) Myau.moduleManager.modules.get(HUD.class)).getColor(System.currentTimeMillis()); break;
-            }
-            RenderUtil.enableRenderState();
-            RenderUtil.drawEntityBox(this.target.getEntity(), color.getRed(), color.getGreen(), color.getBlue());
-            RenderUtil.disableRenderState();
+            Color c = new Color(-1);
+            switch (this.showTarget.getValue()) { case 1: c = this.target.getEntity().hurtTime > 0 ? new Color(16733525) : new Color(5635925); break; case 2: c = ((HUD) Myau.moduleManager.modules.get(HUD.class)).getColor(System.currentTimeMillis()); break; }
+            RenderUtil.enableRenderState(); RenderUtil.drawEntityBox(this.target.getEntity(), c.getRed(), c.getGreen(), c.getBlue()); RenderUtil.disableRenderState();
         }
         if (this.dot.getValue() && attackRotations != null && TeamUtil.isEntityLoaded(this.target.getEntity()) && this.isAttackAllowed()) {
-            float partialTicks = event.getPartialTicks();
-            Vec3 eyePos = mc.thePlayer.getPositionEyes(partialTicks);
-            Vec3 lookVec = ((IAccessorEntity) mc.thePlayer).callGetVectorForRotation(attackRotations[1], attackRotations[0]);
-            Vec3 endPoint = eyePos.addVector(lookVec.xCoord * swingRange.getValue(), lookVec.yCoord * swingRange.getValue(), lookVec.zCoord * swingRange.getValue());
-            AxisAlignedBB box = this.target.getBox();
-            MovingObjectPosition mop = box.calculateIntercept(eyePos, endPoint);
-            Vec3 renderPos = mop != null && mop.hitVec != null ? mop.hitVec : endPoint;
-            double distance = eyePos.distanceTo(renderPos);
-            if (distance < 0.1) distance = 0.1;
-            float actualSize = dotSize.getValue() / 100.0f * (float) Math.sqrt(distance);
-            Color dotCol = new Color(dotColor.getValue(), true);
-            double xPos = renderPos.xCoord - mc.getRenderManager().viewerPosX;
-            double yPos = renderPos.yCoord - mc.getRenderManager().viewerPosY;
-            double zPos = renderPos.zCoord - mc.getRenderManager().viewerPosZ;
-            GL11.glPushMatrix();
-            GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
-            GL11.glDisable(GL11.GL_DEPTH_TEST); GL11.glDepthMask(false); GL11.glDisable(GL11.GL_TEXTURE_2D);
-            GL11.glDisable(GL11.GL_LIGHTING); GL11.glDisable(GL11.GL_CULL_FACE); GL11.glEnable(GL11.GL_BLEND);
-            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            GL11.glColor4f(dotCol.getRed() / 255.0f, dotCol.getGreen() / 255.0f, dotCol.getBlue() / 255.0f, dotCol.getAlpha() / 255.0f);
-            drawCube(xPos, yPos, zPos, actualSize);
-            GL11.glPopAttrib(); GL11.glPopMatrix();
+            float pt = event.getPartialTicks(); Vec3 ep = mc.thePlayer.getPositionEyes(pt); Vec3 lv = ((IAccessorEntity) mc.thePlayer).callGetVectorForRotation(attackRotations[1], attackRotations[0]);
+            Vec3 end = ep.addVector(lv.xCoord * swingRange.getValue(), lv.yCoord * swingRange.getValue(), lv.zCoord * swingRange.getValue());
+            MovingObjectPosition mop = this.target.getBox().calculateIntercept(ep, end); Vec3 rp = mop != null && mop.hitVec != null ? mop.hitVec : end;
+            double dist = ep.distanceTo(rp); if (dist < 0.1) dist = 0.1; float as = dotSize.getValue() / 100.0f * (float) Math.sqrt(dist);
+            Color dc = new Color(dotColor.getValue(), true); double xp = rp.xCoord - mc.getRenderManager().viewerPosX, yp = rp.yCoord - mc.getRenderManager().viewerPosY, zp = rp.zCoord - mc.getRenderManager().viewerPosZ;
+            GL11.glPushMatrix(); GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS); GL11.glDisable(GL11.GL_DEPTH_TEST); GL11.glDepthMask(false); GL11.glDisable(GL11.GL_TEXTURE_2D); GL11.glDisable(GL11.GL_LIGHTING); GL11.glDisable(GL11.GL_CULL_FACE); GL11.glEnable(GL11.GL_BLEND); GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f(dc.getRed() / 255.0f, dc.getGreen() / 255.0f, dc.getBlue() / 255.0f, dc.getAlpha() / 255.0f);
+            drawCube(xp, yp, zp, as); GL11.glPopAttrib(); GL11.glPopMatrix();
         }
     }
 
-    private void drawCube(double x, double y, double z, float size) {
-        float h = size / 2.0f;
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex3d(x-h,y+h,z-h); GL11.glVertex3d(x+h,y+h,z-h); GL11.glVertex3d(x+h,y+h,z+h); GL11.glVertex3d(x-h,y+h,z+h);
-        GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x-h,y-h,z-h);
-        GL11.glVertex3d(x-h,y-h,z-h); GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x+h,y+h,z-h); GL11.glVertex3d(x-h,y+h,z-h);
-        GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x-h,y+h,z+h); GL11.glVertex3d(x+h,y+h,z+h);
-        GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x-h,y-h,z-h); GL11.glVertex3d(x-h,y+h,z-h); GL11.glVertex3d(x-h,y+h,z+h);
-        GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x+h,y+h,z+h); GL11.glVertex3d(x+h,y+h,z-h);
-        GL11.glEnd();
-    }
+    private void drawCube(double x, double y, double z, float s) { float h = s / 2.0f; GL11.glBegin(GL11.GL_QUADS); GL11.glVertex3d(x-h,y+h,z-h); GL11.glVertex3d(x+h,y+h,z-h); GL11.glVertex3d(x+h,y+h,z+h); GL11.glVertex3d(x-h,y+h,z+h); GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x-h,y-h,z-h); GL11.glVertex3d(x-h,y-h,z-h); GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x+h,y+h,z-h); GL11.glVertex3d(x-h,y+h,z-h); GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x-h,y+h,z+h); GL11.glVertex3d(x+h,y+h,z+h); GL11.glVertex3d(x-h,y-h,z+h); GL11.glVertex3d(x-h,y-h,z-h); GL11.glVertex3d(x-h,y+h,z-h); GL11.glVertex3d(x-h,y+h,z+h); GL11.glVertex3d(x+h,y-h,z-h); GL11.glVertex3d(x+h,y-h,z+h); GL11.glVertex3d(x+h,y+h,z+h); GL11.glVertex3d(x+h,y+h,z-h); GL11.glEnd(); }
 
     @EventTarget public void onLeftClick(LeftClickMouseEvent e) { if (this.isBlocking) e.setCancelled(true); else if (this.isEnabled() && this.target != null && this.canAttack()) e.setCancelled(true); }
     @EventTarget public void onRightClick(RightClickMouseEvent e) { if (this.isBlocking) e.setCancelled(true); else if (this.isEnabled() && this.target != null && this.canAttack()) e.setCancelled(true); }
@@ -708,22 +614,15 @@ public class KillAura extends Module {
     @EventTarget public void onCancelUse(CancelUseEvent e) { if (this.isBlocking) e.setCancelled(true); }
 
     @Override
-    public void onEnabled() {
-        this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L;
-        attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.saTemperature = 0.0f; this.saActive = false; this.isReturning = false;
-    }
+    public void onEnabled() { this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.saTemperature = 0.0f; this.saActive = false; this.wasRotating = false; this.isReturning = false; }
 
     @Override
-    public void onDisabled() {
-        Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK);
-        this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false;
-        attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.saTemperature = 0.0f; this.saActive = false; this.isReturning = false;
-    }
+    public void onDisabled() { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.saTemperature = 0.0f; this.saActive = false; this.wasRotating = false; this.isReturning = false; }
 
     @Override
-    public void verifyValue(String value) {
-        if (this.swingRange.getName().equals(value)) { if (this.swingRange.getValue() < this.attackRange.getValue()) this.attackRange.setValue(this.swingRange.getValue()); }
-        else if (this.attackRange.getName().equals(value)) { if (this.swingRange.getValue() < this.attackRange.getValue()) this.swingRange.setValue(this.attackRange.getValue()); }
-        else if (this.minCPS.getName().equals(value)) { if (this.minCPS.getValue() > this.maxCPS.getValue()) this.maxCPS.setValue(this.minCPS.getValue()); }
+    public void verifyValue(String v) {
+        if (this.swingRange.getName().equals(v)) { if (this.swingRange.getValue() < this.attackRange.getValue()) this.attackRange.setValue(this.swingRange.getValue()); }
+        else if (this.attackRange.getName().equals(v)) { if (this.swingRange.getValue() < this.attackRange.getValue()) this.swingRange.setValue(this.attackRange.getValue()); }
+        else if (this.minCPS.getName().equals(v)) { if (this.minCPS.getValue() > this.maxCPS.getValue()) this.maxCPS.setValue(this.minCPS.getValue()); }
     }
 }
