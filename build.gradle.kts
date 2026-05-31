@@ -16,7 +16,7 @@ val jarName: String by project
 val transformerFile = file("src/main/resources/accesstransformer.cfg")
 // Toolchains:
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(8))
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
 }
 // Minecraft configuration:
 loom {
@@ -72,13 +72,14 @@ dependencies {
     shadowImpl("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
         isTransitive = false
     }
-    annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT")
+    annotationProcessor("org.spongepowered:mixin:0.8.5")
     // If you don't want to log in with your real minecraft account, remove this line
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.2.1")
 }
 // Tasks:
-tasks.withType(JavaCompile::class) {
+tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
+    options.release.set(8)
 }
 tasks.withType(org.gradle.jvm.tasks.Jar::class) {
     archiveBaseName.set(jarName)
