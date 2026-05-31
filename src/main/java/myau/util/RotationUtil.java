@@ -58,10 +58,14 @@ public class RotationUtil {
     }
 
     public static float[] getRotationsToEntity(EntityLivingBase entity, float currentYaw, float currentPitch, float maxAngle, float smoothFactor) {
+        return getRotationsToEntity(entity, currentYaw, currentPitch, maxAngle, smoothFactor, 0.0f);
+    }
+
+    public static float[] getRotationsToEntity(EntityLivingBase entity, float currentYaw, float currentPitch, float maxAngle, float smoothFactor, float predictionTicks) {
         Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
-        double deltaX = entity.posX - eyePos.xCoord;
-        double deltaY = (entity.posY + entity.getEyeHeight()) - eyePos.yCoord;
-        double deltaZ = entity.posZ - eyePos.zCoord;
+        double deltaX = (entity.posX + entity.motionX * predictionTicks) - eyePos.xCoord;
+        double deltaY = (entity.posY + entity.getEyeHeight() + entity.motionY * predictionTicks) - eyePos.yCoord;
+        double deltaZ = (entity.posZ + entity.motionZ * predictionTicks) - eyePos.zCoord;
         return getRotations(deltaX, deltaY, deltaZ, currentYaw, currentPitch, maxAngle, smoothFactor);
     }
 
@@ -96,17 +100,19 @@ public class RotationUtil {
     }
 
     public static float[] getRawTargetEntity(EntityLivingBase entity) {
+        return getRawTargetEntity(entity, 0.0f);
+    }
+
+    public static float[] getRawTargetEntity(EntityLivingBase entity, float predictionTicks) {
         Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
-        double deltaX = entity.posX - eyePos.xCoord;
-        double deltaY = (entity.posY + entity.getEyeHeight()) - eyePos.yCoord;
-        double deltaZ = entity.posZ - eyePos.zCoord;
+        double deltaX = (entity.posX + entity.motionX * predictionTicks) - eyePos.xCoord;
+        double deltaY = (entity.posY + entity.getEyeHeight() + entity.motionY * predictionTicks) - eyePos.yCoord;
+        double deltaZ = (entity.posZ + entity.motionZ * predictionTicks) - eyePos.zCoord;
         double horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
         float targetYaw = (float) (Math.atan2(deltaZ, deltaX) * 180.0 / Math.PI) - 90.0f;
         float targetPitch = (float) (-Math.atan2(deltaY, horizontalDistance) * 180.0 / Math.PI);
         return new float[]{targetYaw, targetPitch};
     }
-
-    // ==================== Simulated Annealing ====================
 
     public static float[] simulatedAnnealingStep(
             float currentYaw, float currentPitch,
@@ -116,39 +122,19 @@ public class RotationUtil {
         float yawDelta = MathHelper.wrapAngleTo180_float(targetYaw - currentYaw);
         float pitchDelta = MathHelper.wrapAngleTo180_float(targetPitch - currentPitch);
 
-        float convergenceFactor = Math.max(0.05f, (1.0f - smoothFactor) * 0.5f + 0.05f);
-        float baseYawStep = yawDelta * convergenceFactor;
-        float basePitchStep = pitchDelta * convergenceFactor;
-
-        float yawPerturb = (float) ThreadLocalRandom.current().nextGaussian() * temperature;
-        float pitchPerturb = (float) ThreadLocalRandom.current().nextGaussian() * temperature * 0.6f;
-
-        float candidateYawStep = baseYawStep + yawPerturb;
-        float candidatePitchStep = basePitchStep + pitchPerturb;
-
-        float currentEnergy = yawDelta * yawDelta + pitchDelta * pitchDelta;
-        float newYawRemaining = yawDelta - candidateYawStep;
-        float newPitchRemaining = pitchDelta - candidatePitchStep;
-        float newEnergy = newYawRemaining * newYawRemaining + newPitchRemaining * newPitchRemaining;
-        float deltaE = newEnergy - currentEnergy;
-
-        float yawStep, pitchStep;
-        if (deltaE <= 0) {
-            yawStep = candidateYawStep;
-            pitchStep = candidatePitchStep;
-        } else if (temperature > 0.001f) {
-            float acceptance = (float) Math.exp(-deltaE / (temperature * 100.0f));
-            if (ThreadLocalRandom.current().nextFloat() < acceptance) {
-                yawStep = candidateYawStep;
-                pitchStep = candidatePitchStep;
-            } else {
-                yawStep = baseYawStep;
-                pitchStep = basePitchStep;
-            }
-        } else {
-            yawStep = baseYawStep;
-            pitchStep = basePitchStep;
+        if (Math.abs(yawDelta) < 0.5f && Math.abs(pitchDelta) < 0.5f) {
+            return new float[]{targetYaw, targetPitch};
         }
+
+        float baseFactor = Math.min(1.0f, temperature / 5.0f);
+        float stepFactor = baseFactor * (1.0f - smoothFactor * 0.5f) + 0.1f;
+
+        if (Math.abs(yawDelta) < 5.0f && Math.abs(pitchDelta) < 5.0f) {
+            stepFactor = 1.0f;
+        }
+
+        float yawStep = yawDelta * stepFactor;
+        float pitchStep = pitchDelta * stepFactor;
 
         float gcd = getSensitivityGCD();
         if (gcd > 0.0f) {
@@ -158,8 +144,6 @@ public class RotationUtil {
 
         return new float[]{currentYaw + yawStep, currentPitch + pitchStep};
     }
-
-    // ==================== Smooth Back ====================
 
     public static float[] smoothBack(float currentYaw, float currentPitch,
                                      float targetYaw, float targetPitch, float speed) {
@@ -178,8 +162,6 @@ public class RotationUtil {
         return new float[]{currentYaw + yawDelta, currentPitch + pitchDelta};
     }
 
-    // ==================== Noise ====================
-
     public static float getGaussianNoise() {
         return (float) ThreadLocalRandom.current().nextGaussian();
     }
@@ -194,60 +176,6 @@ public class RotationUtil {
                 + Math.sin(time * frequency * 0.73f + 2.7f) * 0.15f);
     }
 
-    // ==================== Interpolation ====================
-
-    public static float cubicBezier(float p0, float p1, float p2, float p3, float t) {
-        float clamped = Math.max(0.0f, Math.min(1.0f, t));
-        float u = 1.0f - clamped;
-        return u * u * u * p0
-                + 3.0f * u * u * clamped * p1
-                + 3.0f * u * clamped * clamped * p2
-                + clamped * clamped * clamped * p3;
-    }
-
-    public static float[] slerpYawPitch(float currentYaw, float currentPitch, float targetYaw, float targetPitch, float t) {
-        float clamped = Math.max(0.0f, Math.min(1.0f, t));
-        Vec3 from = yawPitchToVector(currentYaw, currentPitch);
-        Vec3 to = yawPitchToVector(targetYaw, targetPitch);
-        double dot = MathHelper.clamp_double(from.dotProduct(to), -1.0, 1.0);
-        double theta = Math.acos(dot);
-        if (theta < 1.0e-5) {
-            return new float[]{targetYaw, targetPitch};
-        }
-        double sinTheta = Math.sin(theta);
-        double w0 = Math.sin((1.0 - clamped) * theta) / sinTheta;
-        double w1 = Math.sin(clamped * theta) / sinTheta;
-        Vec3 blended = new Vec3(
-                from.xCoord * w0 + to.xCoord * w1,
-                from.yCoord * w0 + to.yCoord * w1,
-                from.zCoord * w0 + to.zCoord * w1
-        );
-        double horizontal = Math.sqrt(blended.xCoord * blended.xCoord + blended.zCoord * blended.zCoord);
-        float yaw = (float) (Math.atan2(blended.zCoord, blended.xCoord) * 180.0 / Math.PI) - 90.0f;
-        float pitch = (float) (-Math.atan2(blended.yCoord, horizontal) * 180.0 / Math.PI);
-        return new float[]{yaw, pitch};
-    }
-
-    public static Vec3 yawPitchToVector(float yaw, float pitch) {
-        float yawRad = -yaw * 0.017453292F - (float) Math.PI;
-        float pitchRad = -pitch * 0.017453292F;
-        float cosYaw = MathHelper.cos(yawRad);
-        float sinYaw = MathHelper.sin(yawRad);
-        float cosPitch = -MathHelper.cos(pitchRad);
-        float sinPitch = MathHelper.sin(pitchRad);
-        return new Vec3(sinYaw * cosPitch, sinPitch, cosYaw * cosPitch);
-    }
-
-    public static float levyStep(float alpha, float scale) {
-        float a = Math.max(0.1f, Math.min(2.0f, alpha));
-        double u = ThreadLocalRandom.current().nextGaussian();
-        double v = ThreadLocalRandom.current().nextGaussian();
-        double step = u / Math.pow(Math.abs(v), 1.0 / a);
-        return (float) (step * scale);
-    }
-
-    // ==================== Vector/Distance ====================
-
     public static Vec3 clampVecToBox(Vec3 vector, AxisAlignedBB boundingBox) {
         double[] coords = new double[]{vector.xCoord, vector.yCoord, vector.zCoord};
         double[] minCoords = new double[]{boundingBox.minX, boundingBox.minY, boundingBox.minZ};
@@ -261,8 +189,7 @@ public class RotationUtil {
 
     public static double distanceToEntity(Entity entity) {
         float borderSize = entity.getCollisionBorderSize();
-        AxisAlignedBB boundingBox = entity.getEntityBoundingBox().expand(borderSize, borderSize, borderSize);
-        return distanceToBox(boundingBox);
+        return distanceToBox(entity.getEntityBoundingBox().expand(borderSize, borderSize, borderSize));
     }
 
     public static double distanceToBox(Entity entity, Vec3 point) {
@@ -297,8 +224,6 @@ public class RotationUtil {
         return MathHelper.wrapAngleTo180_float((float) (Math.atan2(z2 - z1, x2 - x1) * 180.0 / Math.PI) - 90.0f - mc.thePlayer.rotationYaw);
     }
 
-    // ==================== Ray Trace ====================
-
     public static MovingObjectPosition rayTrace(float yaw, float pitch, double distance, float partialTicks) {
         Vec3 eyePos = mc.thePlayer.getPositionEyes(partialTicks);
         Vec3 lookVec = ((IAccessorEntity) mc.thePlayer).callGetVectorForRotation(pitch, yaw);
@@ -320,39 +245,27 @@ public class RotationUtil {
         return boundingBox.calculateIntercept(eyePos, targetPos);
     }
 
-    // ==================== Perlin Noise ====================
-
     private static class PerlinNoise {
         private final int[] p;
-
         public PerlinNoise(Random random) {
             int[] perm = new int[256];
             for (int i = 0; i < 256; i++) perm[i] = i;
-            for (int i = 255; i > 0; i--) {
-                int j = random.nextInt(i + 1);
-                int temp = perm[i]; perm[i] = perm[j]; perm[j] = temp;
-            }
+            for (int i = 255; i > 0; i--) { int j = random.nextInt(i + 1); int t = perm[i]; perm[i] = perm[j]; perm[j] = t; }
             p = new int[512];
             for (int i = 0; i < 512; i++) p[i] = perm[i & 255];
         }
-
         private double fade(double t) { return t * t * t * (t * (t * 6 - 15) + 10); }
         private double lerp(double t, double a, double b) { return a + t * (b - a); }
         private double grad(int hash, double x, double y) {
-            int h = hash & 3;
-            double u = h < 2 ? x : y;
-            double v = h < 2 ? y : x;
+            int h = hash & 3; double u = h < 2 ? x : y, v = h < 2 ? y : x;
             return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
         }
-
         public double noise(double x, double y) {
-            int X = (int) Math.floor(x) & 255;
-            int Y = (int) Math.floor(y) & 255;
+            int X = (int) Math.floor(x) & 255, Y = (int) Math.floor(y) & 255;
             x -= Math.floor(x); y -= Math.floor(y);
             double u = fade(x), v = fade(y);
             int A = p[X] + Y, B = p[X + 1] + Y;
-            return lerp(v, lerp(u, grad(p[A], x, y), grad(p[B], x - 1, y)),
-                    lerp(u, grad(p[A + 1], x, y - 1), grad(p[B + 1], x - 1, y - 1)));
+            return lerp(v, lerp(u, grad(p[A], x, y), grad(p[B], x - 1, y)), lerp(u, grad(p[A + 1], x, y - 1), grad(p[B + 1], x - 1, y - 1)));
         }
     }
 }
