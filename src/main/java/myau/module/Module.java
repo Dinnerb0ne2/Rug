@@ -5,6 +5,24 @@ import myau.module.modules.HUD;
 import myau.util.KeyBindUtil;
 
 public abstract class Module {
+    public enum Category {
+        COMBAT("Combat"),
+        MOVEMENT("Movement"),
+        RENDER("Render"),
+        PLAYER("Player"),
+        MISC("Misc");
+
+        private final String displayName;
+
+        Category(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return this.displayName;
+        }
+    }
+
     protected final String name;
     protected final boolean defaultEnabled;
     protected final int defaultKey;
@@ -12,6 +30,7 @@ public abstract class Module {
     protected boolean enabled;
     protected int key;
     protected boolean hidden;
+    protected Category category;
 
     public Module(String name, boolean enabled) {
         this(name, enabled, false);
@@ -22,10 +41,15 @@ public abstract class Module {
         this.enabled = this.defaultEnabled = enabled;
         this.key = this.defaultKey = 0;
         this.hidden = this.defaultHidden = hidden;
+        this.category = Category.MISC;
     }
 
     public String getName() {
         return this.name;
+    }
+
+    public Category getCategory() {
+        return this.category;
     }
 
     public String formatModule() {
