@@ -16,6 +16,8 @@ import myau.property.properties.FloatProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.IntProperty;
 import net.minecraft.client.Minecraft;
+import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
@@ -27,7 +29,10 @@ public class NoFall extends Module {
     private final TimerUtil scoreboardResetTimer = new TimerUtil();
     private boolean slowFalling = false;
     private boolean lastOnGround = false;
-    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"PACKET", "BLINK", "NO_GROUND", "SPOOF"});
+    private int legitState = 0;
+    private int savedSlot = -1;
+
+    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"PACKET", "BLINK", "NO_GROUND", "SPOOF", "LEGIT"});
     public final FloatProperty distance = new FloatProperty("distance", 3.0F, 0.0F, 20.0F);
     public final IntProperty delay = new IntProperty("delay", 0, 0, 10000);
 
@@ -104,6 +109,9 @@ public class NoFall extends Module {
                                 mc.thePlayer.fallDistance = 0.0F;
                             }
                         }
+                        break;
+                    case 4:
+                        break;
                 }
             }
         }
@@ -119,12 +127,55 @@ public class NoFall extends Module {
                 PacketUtil.sendPacketNoEvent(new C03PacketPlayer(true));
                 mc.thePlayer.fallDistance = 0.0F;
             }
+
+            if (this.mode.getValue() == 4) {
+                if (legitState == 0) {
+                    if (mc.thePlayer.fallDistance >= this.distance.getValue() && mc.thePlayer.motionY < 0 && !mc.thePlayer.isOnLadder() && !mc.thePlayer.isInWater()) {
+                        int waterSlot = -1;
+                        for (int i = 0; i < 9; i++) {
+                            ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                            if (stack != null && stack.getItem() == Items.water_bucket) {
+                                waterSlot = i;
+                                break;
+                            }
+                        }
+                        if (waterSlot != -1) {
+                            savedSlot = mc.thePlayer.inventory.currentItem;
+                            mc.thePlayer.inventory.currentItem = waterSlot;
+                            legitState = 1;
+                        }
+                    }
+                } else if (legitState == 1) {
+                    if (mc.thePlayer.onGround) {
+                        mc.thePlayer.inventory.currentItem = savedSlot;
+                        legitState = 0;
+                    } else {
+                        mc.thePlayer.rotationPitch = 90.0f;
+                        mc.entityRenderer.getMouseOver(1.0f);
+                        ((IAccessorMinecraft) mc).callRightClickMouse();
+                        legitState = 2;
+                    }
+                } else if (legitState == 2) {
+                    mc.thePlayer.rotationPitch = 90.0f;
+                    if (mc.thePlayer.onGround || mc.thePlayer.isInWater()) {
+                        legitState = 3;
+                    }
+                } else if (legitState == 3) {
+                    mc.thePlayer.rotationPitch = 90.0f;
+                    mc.entityRenderer.getMouseOver(1.0f);
+                    ((IAccessorMinecraft) mc).callRightClickMouse();
+                    mc.thePlayer.inventory.currentItem = savedSlot;
+                    legitState = 0;
+                }
+            }
         }
     }
 
     @Override
     public void onDisabled() {
         this.lastOnGround = false;
+        this.legitState = 0;
+        this.savedSlot = -1;
         Myau.blinkManager.setBlinkState(false, BlinkModules.NO_FALL);
         if (this.slowFalling) {
             this.slowFalling = false;

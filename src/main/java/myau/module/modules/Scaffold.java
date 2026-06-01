@@ -8,6 +8,7 @@ import myau.events.*;
 import myau.management.RotationState;
 import myau.module.Module;
 import myau.property.properties.BooleanProperty;
+import myau.property.properties.IntProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
 import myau.util.*;
@@ -62,6 +63,11 @@ public class Scaffold extends Module {
     private boolean shouldKeepY = false;
     private boolean towering = false;
     private EnumFacing targetFacing = null;
+    
+    private int placedBlocksCount = 0;
+    private boolean isEagleSneaking = false;
+    private long eagleSneakStartTime = 0L;
+
     public final ModeProperty rotationMode = new ModeProperty("rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS"});
     public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT"});
     public final ModeProperty sprintMode = new ModeProperty("sprint", 0, new String[]{"NONE", "VANILLA"});
@@ -77,6 +83,10 @@ public class Scaffold extends Module {
     public final BooleanProperty swing = new BooleanProperty("swing", true);
     public final BooleanProperty itemSpoof = new BooleanProperty("item-spoof", false);
     public final BooleanProperty blockCounter = new BooleanProperty("block-counter", true);
+    
+    public final BooleanProperty eagle = new BooleanProperty("eagle", false);
+    public final IntProperty eagleBlocks = new IntProperty("eagle-blocks", 1, 1, 20, () -> this.eagle.getValue());
+    public final IntProperty eagleMs = new IntProperty("eagle-ms", 100, 1, 1000, () -> this.eagle.getValue());
 
     private boolean shouldStopSprint() {
         if (this.isTowering()) {
@@ -174,6 +184,14 @@ public class Scaffold extends Module {
                     mc.thePlayer.swingItem();
                 } else {
                     PacketUtil.sendPacket(new C0APacketAnimation());
+                }
+                if (this.eagle.getValue()) {
+                    this.placedBlocksCount++;
+                    if (this.placedBlocksCount >= this.eagleBlocks.getValue()) {
+                        this.placedBlocksCount = 0;
+                        this.isEagleSneaking = true;
+                        this.eagleSneakStartTime = System.currentTimeMillis();
+                    }
                 }
             }
         }
@@ -600,8 +618,7 @@ public class Scaffold extends Module {
                             default:
                                 this.towerTick = 0;
                                 this.towerDelay = 0;
-                                return;
-                        }
+                }
                     default:
                         this.towerTick = 0;
                         this.towerDelay = 0;
@@ -624,6 +641,17 @@ public class Scaffold extends Module {
             }
             if (mc.thePlayer.onGround && this.stage > 0 && MoveUtil.isForwardPressed()) {
                 mc.thePlayer.movementInput.jump = true;
+            }
+            if (this.eagle.getValue()) {
+                if (this.isEagleSneaking) {
+                    if (System.currentTimeMillis() - this.eagleSneakStartTime < this.eagleMs.getValue()) {
+                        mc.thePlayer.movementInput.sneak = true;
+                        mc.thePlayer.movementInput.moveStrafe *= 0.3F;
+                        mc.thePlayer.movementInput.moveForward *= 0.3F;
+                    } else {
+                        this.isEagleSneaking = false;
+                    }
+                }
             }
         }
     }
@@ -738,6 +766,8 @@ public class Scaffold extends Module {
         this.towerTick = 0;
         this.towerDelay = 0;
         this.towering = false;
+        this.placedBlocksCount = 0;
+        this.isEagleSneaking = false;
     }
 
     @Override

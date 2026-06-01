@@ -16,6 +16,7 @@ import myau.util.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.gui.inventory.GuiContainer;
+import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.entity.DataWatcher.WatchableObject;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -45,14 +46,10 @@ import net.minecraft.world.WorldSettings.GameType;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
-import java.util.Locale;
 
 public class KillAura extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    private static final DecimalFormat df = new DecimalFormat("+0.0;-0.0", new DecimalFormatSymbols(Locale.US));
     private final TimerUtil timer = new TimerUtil();
     private AttackData target = null;
     private int switchTick = 0;
@@ -61,11 +58,12 @@ public class KillAura extends Module {
     private boolean isBlocking = false;
     private boolean fakeBlockState = false;
     private long attackDelayMS = 0L;
-    private int lastTickProcessed;
     private float[] attackRotations = null;
 
     private float saTemperature = 0.0f;
     private boolean saActive = false;
+    private float saTargetYaw = 0.0f;
+    private float saTargetPitch = 0.0f;
 
     private boolean wasRotating = false;
     private boolean isReturning = false;
@@ -75,6 +73,9 @@ public class KillAura extends Module {
     private float perlinTimeAccumulator = 0.0F;
     private float noiseFatigue = 0.0f;
     private int lastTargetEntityId = -1;
+
+    private float fatigueLevel = 0.0f;
+    private float fatigueDriftTime = 0.0f;
 
     public final ModeProperty mode;
     public final ModeProperty sort;
@@ -100,6 +101,8 @@ public class KillAura extends Module {
 
     public final BooleanProperty bestHitVec;
     public final FloatProperty predictionTicks;
+    public final BooleanProperty smartHit;
+    public final BooleanProperty smartAim;
 
     public final ModeProperty noiseMode;
     public final FloatProperty noiseBaseScale;
@@ -113,6 +116,19 @@ public class KillAura extends Module {
     public final BooleanProperty noiseDistanceScale;
     public final FloatProperty noiseMicroJitter;
     public final BooleanProperty noiseGcdQuantize;
+
+    public final ModeProperty fatigueMode;
+    public final FloatProperty fatigueAccumRate;
+    public final FloatProperty fatigueDecayRate;
+    public final FloatProperty fatigueSmoothingMul;
+    public final FloatProperty fatigueAngleReduction;
+    public final FloatProperty fatigueDriftScale;
+    public final FloatProperty fatigueDriftFreq;
+    public final FloatProperty fatigueOvershootScale;
+    public final FloatProperty fatigueOvershootProb;
+    public final FloatProperty fatigueCpsPenalty;
+    public final FloatProperty fatigueSwitchPenalty;
+    public final BooleanProperty fatigueGcdQuantize;
 
     public final BooleanProperty throughWalls;
     public final BooleanProperty requirePress;
@@ -129,7 +145,6 @@ public class KillAura extends Module {
     public final BooleanProperty silverfish;
     public final BooleanProperty teams;
     public final ModeProperty showTarget;
-    public final ModeProperty debugLog;
     public final BooleanProperty dot;
     public final ColorProperty dotColor;
     public final FloatProperty dotSize;
@@ -148,7 +163,25 @@ public class KillAura extends Module {
     }
 
     private long getAttackDelay() {
-        return 1000L / RandomUtil.nextLong(this.minCPS.getValue(), this.maxCPS.getValue());
+        int effectiveMinCPS = this.minCPS.getValue();
+        int effectiveMaxCPS = this.maxCPS.getValue();
+        if (this.fatigueMode.getValue() != 0 && this.fatigueCpsPenalty.getValue() > 0.0f) {
+            int penalty = (int) (this.fatigueLevel * this.fatigueCpsPenalty.getValue());
+            effectiveMinCPS = Math.max(1, effectiveMinCPS - penalty);
+            effectiveMaxCPS = Math.max(effectiveMinCPS, effectiveMaxCPS - penalty);
+        }
+        return 1000L / RandomUtil.nextLong(effectiveMinCPS, effectiveMaxCPS);
+    }
+
+    private int getPlayerPing() {
+        try {
+            for (NetworkPlayerInfo info : mc.thePlayer.sendQueue.getPlayerInfoMap()) {
+                if (info.getGameProfile().getId().equals(mc.thePlayer.getGameProfile().getId())) {
+                    return info.getResponseTime();
+                }
+            }
+        } catch (Exception ignored) {}
+        return 0;
     }
 
     private float[] getDynamicRecoveryNoiseOffset() {
@@ -214,6 +247,90 @@ public class KillAura extends Module {
         }
     }
 
+    private void updateFatigue(boolean inCombat) {
+        if (this.fatigueMode.getValue() == 0) return;
+        if (inCombat) {
+            float rate = this.fatigueAccumRate.getValue();
+            switch (this.fatigueMode.getValue()) {
+                case 1:
+                    this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + rate);
+                    break;
+                case 2:
+                    this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + rate * (1.0f + this.fatigueLevel * 2.0f));
+                    break;
+                case 3:
+                    this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + rate / (1.0f + this.fatigueLevel * 5.0f));
+                    break;
+                case 4:
+                    float effort = 1.0f;
+                    if (this.target != null) {
+                        float[] rawTarget;
+                        if (this.smartAim.getValue()) {
+                            rawTarget = RotationUtil.getRawTargetSmartVec(this.target.getBox(), mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch);
+                        } else if (this.bestHitVec.getValue()) {
+                            rawTarget = RotationUtil.getRawTargetBox(this.target.getBox());
+                        } else {
+                            rawTarget = RotationUtil.getRawTargetEntity(this.target.getEntity(), this.predictionTicks.getValue());
+                        }
+                        float angleDiff = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[0] - mc.thePlayer.rotationYaw));
+                        effort = 1.0f + angleDiff / 90.0f;
+                        double dist = RotationUtil.distanceToBox(this.target.getBox());
+                        effort *= (float) (1.0 + dist / 4.0);
+                    }
+                    this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + rate * effort);
+                    break;
+            }
+        } else {
+            float decay = this.fatigueDecayRate.getValue();
+            switch (this.fatigueMode.getValue()) {
+                case 1:
+                    this.fatigueLevel = Math.max(0.0f, this.fatigueLevel - decay);
+                    break;
+                case 2:
+                    this.fatigueLevel = Math.max(0.0f, this.fatigueLevel - decay * (1.0f + this.fatigueLevel));
+                    break;
+                case 3:
+                    this.fatigueLevel = Math.max(0.0f, this.fatigueLevel - decay / (1.0f + this.fatigueLevel * 3.0f));
+                    break;
+                case 4:
+                    this.fatigueLevel = Math.max(0.0f, this.fatigueLevel - decay * (1.0f + this.fatigueLevel * 0.5f));
+                    break;
+            }
+            if (this.fatigueLevel < 0.001f) this.fatigueLevel = 0.0f;
+        }
+    }
+
+    private float[] getFatigueDriftOffset() {
+        if (this.fatigueMode.getValue() == 0 || this.fatigueDriftScale.getValue() == 0.0f) return new float[]{0.0f, 0.0f};
+        float effectiveDrift = this.fatigueDriftScale.getValue() * this.fatigueLevel;
+        float freq = this.fatigueDriftFreq.getValue();
+        float time = this.fatigueDriftTime;
+        float yawDrift = RotationUtil.getPerlinNoise(time, 50.0f) * effectiveDrift * 0.6f
+                + RotationUtil.getWaveNoise(time, freq) * effectiveDrift * 0.4f;
+        float pitchDrift = RotationUtil.getPerlinNoise(time, 150.0f) * effectiveDrift * 0.4f
+                + RotationUtil.getWaveNoise(time + 25.0f, freq) * effectiveDrift * 0.3f;
+        if (this.fatigueGcdQuantize.getValue()) {
+            float gcd = RotationUtil.getSensitivityGCD();
+            if (gcd > 0.0f) {
+                yawDrift = Math.round(yawDrift / gcd) * gcd;
+                pitchDrift = Math.round(pitchDrift / gcd) * gcd;
+            }
+        }
+        return new float[]{yawDrift, pitchDrift};
+    }
+
+    private float[] getFatigueOvershoot(float yawDeltaToTarget, float pitchDeltaToTarget) {
+        if (this.fatigueMode.getValue() == 0 || this.fatigueOvershootProb.getValue() <= 0.0f || this.fatigueLevel < 0.05f) {
+            return new float[]{0.0f, 0.0f};
+        }
+        float prob = this.fatigueOvershootProb.getValue() * this.fatigueLevel;
+        if (Math.random() > prob) return new float[]{0.0f, 0.0f};
+        float scale = this.fatigueOvershootScale.getValue() * this.fatigueLevel;
+        float yawOvershoot = Math.signum(yawDeltaToTarget) * (0.3f + (float) Math.random() * 0.7f) * scale;
+        float pitchOvershoot = Math.signum(pitchDeltaToTarget) * (0.2f + (float) Math.random() * 0.5f) * scale * 0.5f;
+        return new float[]{yawOvershoot, pitchOvershoot};
+    }
+
     private void handleSmoothBack(UpdateEvent event) {
         if (!this.smoothBackProp.getValue() || (this.rotations.getValue() != 2 && this.rotations.getValue() != 3)) {
             this.isReturning = false;
@@ -231,7 +348,12 @@ public class KillAura extends Module {
         }
         float playerYaw = mc.thePlayer.rotationYaw;
         float playerPitch = mc.thePlayer.rotationPitch;
-        float[] back = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, this.smoothBackSpeed.getValue());
+        float backSpeed = this.smoothBackSpeed.getValue();
+        if (this.fatigueMode.getValue() != 0) {
+            backSpeed *= (1.0f - this.fatigueLevel * 0.5f);
+            backSpeed = Math.max(0.01f, backSpeed);
+        }
+        float[] back = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, backSpeed);
         this.returnYaw = back[0];
         this.returnPitch = back[1];
         float yD = Math.abs(MathHelper.wrapAngleTo180_float(playerYaw - this.returnYaw));
@@ -248,9 +370,12 @@ public class KillAura extends Module {
 
     private float[] getTargetRotations(float currentYaw, float currentPitch, float maxAngle, float smoothFactor) {
         float ticks = this.predictionTicks.getValue();
-        if (this.bestHitVec.getValue()) {
-            AxisAlignedBB box = this.target.getBox();
-            AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+        AxisAlignedBB box = this.target.getBox();
+        AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+
+        if (this.smartAim.getValue()) {
+            return RotationUtil.getRotationsToSmartVec(predBox, currentYaw, currentPitch, maxAngle, smoothFactor);
+        } else if (this.bestHitVec.getValue()) {
             return RotationUtil.getRotationsToBox(predBox, currentYaw, currentPitch, maxAngle, smoothFactor);
         } else {
             return RotationUtil.getRotationsToEntity(this.target.getEntity(), currentYaw, currentPitch, maxAngle, smoothFactor, ticks);
@@ -259,20 +384,27 @@ public class KillAura extends Module {
 
     private float[] getRawTarget() {
         float ticks = this.predictionTicks.getValue();
-        if (this.bestHitVec.getValue()) {
-            AxisAlignedBB box = this.target.getBox();
-            AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+        AxisAlignedBB box = this.target.getBox();
+        AxisAlignedBB predBox = box.offset(this.target.getEntity().motionX * ticks, this.target.getEntity().motionY * ticks, this.target.getEntity().motionZ * ticks);
+
+        if (this.smartAim.getValue()) {
+            return RotationUtil.getRawTargetSmartVec(predBox, mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch);
+        } else if (this.bestHitVec.getValue()) {
             return RotationUtil.getRawTargetBox(predBox);
         } else {
             return RotationUtil.getRawTargetEntity(this.target.getEntity(), ticks);
         }
     }
 
-    private boolean performAttack(float yaw, float pitch) {
+    private boolean performAttack(float yaw, float pitch, boolean isSmartHitting) {
         if (!Myau.playerStateManager.digging && !Myau.playerStateManager.placing) {
             if (this.isPlayerBlocking() && this.autoBlock.getValue() != 1) return false;
             else if (this.attackDelayMS > 0L) return false;
             else {
+                if (isSmartHitting) {
+                    this.attackDelayMS += 500L;
+                    return false;
+                }
                 this.attackDelayMS += this.getAttackDelay();
                 mc.thePlayer.swingItem();
                 if ((this.rotations.getValue() != 0 || !this.isBoxInAttackRange(this.target.getBox())) && RotationUtil.rayTrace(this.target.getBox(), yaw, pitch, this.attackRange.getValue()) == null) return false;
@@ -378,7 +510,6 @@ public class KillAura extends Module {
 
     public KillAura() {
         super("KillAura", false);
-        this.lastTickProcessed = 0;
         this.mode = new ModeProperty("mode", 0, new String[]{"SINGLE", "SWITCH"});
         this.sort = new ModeProperty("sort", 0, new String[]{"DISTANCE", "HEALTH", "HURT_TIME", "FOV"});
         this.autoBlock = new ModeProperty("auto-block", 0, new String[]{"NONE", "VANILLA", "FAKE"});
@@ -400,6 +531,8 @@ public class KillAura extends Module {
         this.smoothBackSpeed = new FloatProperty("smooth-back-speed", 0.3F, 0.05F, 1.0F);
         this.bestHitVec = new BooleanProperty("best-hit-vec", true);
         this.predictionTicks = new FloatProperty("prediction", 1.5F, 0.0F, 5.0F);
+        this.smartHit = new BooleanProperty("SmartHit", false);
+        this.smartAim = new BooleanProperty("SmartAim", false);
         this.noiseMode = new ModeProperty("noise-mode", 0, new String[]{"NONE", "GAUSSIAN", "PERLIN", "WAVE", "HYBRID"});
         this.noiseBaseScale = new FloatProperty("noise-base-scale", 0.5F, 0.0F, 5.0F);
         this.noiseFatigueScale = new FloatProperty("noise-fatigue-scale", 3.0F, 0.0F, 15.0F);
@@ -412,6 +545,18 @@ public class KillAura extends Module {
         this.noiseDistanceScale = new BooleanProperty("noise-distance-scale", true);
         this.noiseMicroJitter = new FloatProperty("noise-micro-jitter", 0.3F, 0.0F, 3.0F);
         this.noiseGcdQuantize = new BooleanProperty("noise-gcd-quantize", true);
+        this.fatigueMode = new ModeProperty("fatigue-mode", 0, new String[]{"NONE", "LINEAR", "EXPONENTIAL", "LOGARITHMIC", "ADAPTIVE"});
+        this.fatigueAccumRate = new FloatProperty("fatigue-accum-rate", 0.008F, 0.001F, 0.05F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueDecayRate = new FloatProperty("fatigue-decay-rate", 0.004F, 0.001F, 0.03F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueSmoothingMul = new FloatProperty("fatigue-smoothing-mul", 2.0F, 0.5F, 5.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueAngleReduction = new FloatProperty("fatigue-angle-reduction", 0.3F, 0.0F, 0.8F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueDriftScale = new FloatProperty("fatigue-drift-scale", 1.5F, 0.0F, 5.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueDriftFreq = new FloatProperty("fatigue-drift-freq", 0.8F, 0.1F, 3.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueOvershootScale = new FloatProperty("fatigue-overshoot-scale", 3.0F, 0.0F, 10.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueOvershootProb = new FloatProperty("fatigue-overshoot-prob", 0.3F, 0.0F, 1.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueCpsPenalty = new FloatProperty("fatigue-cps-penalty", 3.0F, 0.0F, 10.0F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueSwitchPenalty = new FloatProperty("fatigue-switch-penalty", 0.15F, 0.0F, 0.5F, () -> this.fatigueMode.getValue() != 0);
+        this.fatigueGcdQuantize = new BooleanProperty("fatigue-gcd-quantize", true, () -> this.fatigueMode.getValue() != 0);
         this.throughWalls = new BooleanProperty("through-walls", true);
         this.requirePress = new BooleanProperty("require-press", false);
         this.allowMining = new BooleanProperty("allow-mining", true);
@@ -427,7 +572,6 @@ public class KillAura extends Module {
         this.silverfish = new BooleanProperty("silverfish", false);
         this.teams = new BooleanProperty("teams", true);
         this.showTarget = new ModeProperty("show-target", 0, new String[]{"NONE", "DEFAULT", "HUD"});
-        this.debugLog = new ModeProperty("debug-log", 0, new String[]{"NONE", "HEALTH"});
         this.dot = new BooleanProperty("dot", true);
         this.dotColor = new ColorProperty("dot-color", -1);
         this.dotSize = new FloatProperty("dot-size", 5.0F, 1.0F, 50.0F);
@@ -453,9 +597,13 @@ public class KillAura extends Module {
         if (this.noiseMode.getValue() != 0) {
             this.perlinTimeAccumulator += this.noiseFrequency.getValue() * 0.05F + 0.02F * this.noiseFatigue;
         }
+        if (this.fatigueMode.getValue() != 0) {
+            this.fatigueDriftTime += this.fatigueDriftFreq.getValue() * 0.03F + 0.01F * this.fatigueLevel;
+        }
         if (this.attackDelayMS > 0L) this.attackDelayMS -= 50L;
 
         this.updateNoiseFatigue(this.target != null);
+        this.updateFatigue(this.target != null);
 
         boolean attack = this.target != null && this.canAttack();
         boolean block = attack && this.canAutoBlock();
@@ -484,27 +632,65 @@ public class KillAura extends Module {
 
             boolean attacked = false;
             if (this.isBoxInSwingRange(this.target.getBox())) {
+                int hurtTimeThreshold = 3 + this.getPlayerPing() / 50;
+                boolean isSmartHitting = this.smartHit.getValue() && mc.thePlayer.hurtTime == 0 && this.target.getEntity().hurtTime > hurtTimeThreshold;
+
                 float smoothFactor = (float) this.smoothing.getValue() / 100.0F;
+                float fatigueMaxAngle = 180.0f;
+
+                if (this.fatigueMode.getValue() != 0) {
+                    smoothFactor = Math.min(1.0f, smoothFactor * (1.0f + this.fatigueLevel * this.fatigueSmoothingMul.getValue()));
+                    fatigueMaxAngle *= (1.0f - this.fatigueLevel * this.fatigueAngleReduction.getValue());
+                }
+
                 float[] targetRotations;
 
                 if (this.rotationMode.getValue() == 0) {
-                    targetRotations = this.getTargetRotations(event.getYaw(), event.getPitch(), 180.0f, smoothFactor);
+                    targetRotations = this.getTargetRotations(event.getYaw(), event.getPitch(), fatigueMaxAngle, smoothFactor);
                 } else {
                     float[] rawTarget = this.getRawTarget();
-                    float deltaYaw = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[0] - event.getYaw()));
-                    float deltaPitch = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[1] - event.getPitch()));
+                    float deltaYaw = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[0] - this.saTargetYaw));
+                    float deltaPitch = Math.abs(MathHelper.wrapAngleTo180_float(rawTarget[1] - this.saTargetPitch));
                     if (!this.saActive || deltaYaw > this.saResetThreshold.getValue() || deltaPitch > this.saResetThreshold.getValue()) {
                         this.saTemperature = this.saInitTemp.getValue();
+                        this.saTargetYaw = event.getYaw();
+                        this.saTargetPitch = event.getPitch();
                         this.saActive = true;
                     }
-                    targetRotations = RotationUtil.simulatedAnnealingStep(event.getYaw(), event.getPitch(), rawTarget[0], rawTarget[1], this.saTemperature, smoothFactor);
+
+                    float[] saResult = RotationUtil.simulatedAnnealingStep(this.saTargetYaw, this.saTargetPitch, rawTarget[0], rawTarget[1], this.saTemperature);
+                    this.saTargetYaw = saResult[0];
+                    this.saTargetPitch = saResult[1];
                     this.saTemperature = Math.max(this.saMinTemp.getValue(), this.saTemperature * this.saCoolingRate.getValue());
+
+                    float yawDelta = MathHelper.wrapAngleTo180_float(this.saTargetYaw - event.getYaw());
+                    float pitchDelta = MathHelper.wrapAngleTo180_float(this.saTargetPitch - event.getPitch());
+                    yawDelta = Math.abs(yawDelta) <= 1.0f ? 0.0f : RotationUtil.smoothAngle(RotationUtil.clampAngle(yawDelta, fatigueMaxAngle), smoothFactor);
+                    pitchDelta = Math.abs(pitchDelta) <= 1.0f ? 0.0f : RotationUtil.smoothAngle(RotationUtil.clampAngle(pitchDelta, fatigueMaxAngle), smoothFactor);
+
+                    float gcd = RotationUtil.getSensitivityGCD();
+                    if (gcd > 0.0f) {
+                        yawDelta = Math.round(yawDelta / gcd) * gcd;
+                        pitchDelta = Math.round(pitchDelta / gcd) * gcd;
+                    }
+                    targetRotations = new float[]{event.getYaw() + yawDelta, event.getPitch() + pitchDelta};
                 }
 
                 if (this.noiseMode.getValue() != 0) {
                     float[] n = this.getDynamicRecoveryNoiseOffset();
                     targetRotations[0] += n[0];
                     targetRotations[1] += n[1];
+                }
+
+                if (this.fatigueMode.getValue() != 0) {
+                    float[] drift = this.getFatigueDriftOffset();
+                    targetRotations[0] += drift[0];
+                    targetRotations[1] += drift[1];
+                    float yawDeltaToTarget = MathHelper.wrapAngleTo180_float(targetRotations[0] - event.getYaw());
+                    float pitchDeltaToTarget = MathHelper.wrapAngleTo180_float(targetRotations[1] - event.getPitch());
+                    float[] overshoot = this.getFatigueOvershoot(yawDeltaToTarget, pitchDeltaToTarget);
+                    targetRotations[0] += overshoot[0];
+                    targetRotations[1] += overshoot[1];
                 }
 
                 attackRotations = targetRotations;
@@ -514,7 +700,7 @@ public class KillAura extends Module {
                     if (this.moveFix.getValue() != 0 || this.rotations.getValue() == 3) event.setPervRotation(targetRotations[0], 1);
                     this.wasRotating = true;
                 }
-                if (attack) attacked = this.performAttack(event.getNewYaw(), event.getNewPitch());
+                if (attack) attacked = this.performAttack(event.getNewYaw(), event.getNewPitch(), isSmartHitting);
             } else {
                 attackRotations = null;
                 this.saActive = false;
@@ -553,6 +739,9 @@ public class KillAura extends Module {
                     int currentTargetId = this.target.getEntity().getEntityId();
                     if (currentTargetId != this.lastTargetEntityId) {
                         this.noiseFatigue *= 0.6f;
+                        if (this.fatigueMode.getValue() != 0) {
+                            this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + this.fatigueSwitchPenalty.getValue());
+                        }
                         this.lastTargetEntityId = currentTargetId;
                     }
                     this.target = new AttackData(this.target.getEntity());
@@ -571,10 +760,6 @@ public class KillAura extends Module {
         if (!this.isEnabled() || !event.isCancelled() && mc.thePlayer != null && mc.theWorld != null) {
             if (event.getPacket() instanceof C07PacketPlayerDigging) { if (((C07PacketPlayerDigging) event.getPacket()).getStatus() == C07PacketPlayerDigging.Action.RELEASE_USE_ITEM) this.blockingState = false; }
             if (event.getPacket() instanceof C09PacketHeldItemChange) { this.blockingState = false; if (this.isBlocking) mc.thePlayer.stopUsingItem(); }
-            if (this.debugLog.getValue() == 1 && this.isAttackAllowed()) {
-                if (event.getPacket() instanceof S06PacketUpdateHealth) { float p = ((S06PacketUpdateHealth) event.getPacket()).getHealth() - mc.thePlayer.getHealth(); if (p != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) { this.lastTickProcessed = mc.thePlayer.ticksExisted; ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, p > 0.0F ? "&a" : "&c", df.format(p), mc.thePlayer.ticksExisted)); } }
-                if (event.getPacket() instanceof S1CPacketEntityMetadata) { S1CPacketEntityMetadata pk = (S1CPacketEntityMetadata) event.getPacket(); if (pk.getEntityId() == mc.thePlayer.getEntityId()) { for (WatchableObject wo : pk.func_149376_c()) { if (wo.getDataValueId() == 6) { float d = (Float) wo.getObject() - mc.thePlayer.getHealth(); if (d != 0.0F && this.lastTickProcessed != mc.thePlayer.ticksExisted) { this.lastTickProcessed = mc.thePlayer.ticksExisted; ChatUtil.sendFormatted(String.format("%sHealth: %s&l%s&r (&otick: %d&r)&r", Myau.clientName, d > 0.0F ? "&a" : "&c", df.format(d), mc.thePlayer.ticksExisted)); } } } } }
-            }
         }
     }
 
@@ -614,10 +799,10 @@ public class KillAura extends Module {
     @EventTarget public void onCancelUse(CancelUseEvent e) { if (this.isBlocking) e.setCancelled(true); }
 
     @Override
-    public void onEnabled() { this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.saTemperature = 0.0f; this.saActive = false; this.wasRotating = false; this.isReturning = false; }
+    public void onEnabled() { this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.fatigueDriftTime = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saTargetYaw = 0.0f; this.saTargetPitch = 0.0f; this.wasRotating = false; this.isReturning = false; }
 
     @Override
-    public void onDisabled() { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.saTemperature = 0.0f; this.saActive = false; this.wasRotating = false; this.isReturning = false; }
+    public void onDisabled() { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.fatigueDriftTime = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saTargetYaw = 0.0f; this.saTargetPitch = 0.0f; this.wasRotating = false; this.isReturning = false; }
 
     @Override
     public void verifyValue(String v) {
