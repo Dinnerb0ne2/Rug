@@ -48,12 +48,32 @@ public class RotationUtil {
         return new Vec3(ex, ey, ez);
     }
 
+    public static Vec3 getSmartHitVec(AxisAlignedBB boundingBox, float currentYaw, float currentPitch) {
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
+        Vec3 lookVec = ((IAccessorEntity) mc.thePlayer).callGetVectorForRotation(currentPitch, currentYaw);
+        Vec3 endPos = eyePos.addVector(lookVec.xCoord * 6.0, lookVec.yCoord * 6.0, lookVec.zCoord * 6.0);
+        MovingObjectPosition mop = boundingBox.calculateIntercept(eyePos, endPos);
+        if (mop != null && mop.hitVec != null) {
+            return mop.hitVec;
+        }
+        return getBestHitVec(boundingBox);
+    }
+
     public static float[] getRotationsToBox(AxisAlignedBB boundingBox, float currentYaw, float currentPitch, float maxAngle, float smoothFactor) {
         Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
         Vec3 bestHitVec = getBestHitVec(boundingBox);
         double deltaX = bestHitVec.xCoord - eyePos.xCoord;
         double deltaY = bestHitVec.yCoord - eyePos.yCoord;
         double deltaZ = bestHitVec.zCoord - eyePos.zCoord;
+        return getRotations(deltaX, deltaY, deltaZ, currentYaw, currentPitch, maxAngle, smoothFactor);
+    }
+
+    public static float[] getRotationsToSmartVec(AxisAlignedBB boundingBox, float currentYaw, float currentPitch, float maxAngle, float smoothFactor) {
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
+        Vec3 smartHitVec = getSmartHitVec(boundingBox, currentYaw, currentPitch);
+        double deltaX = smartHitVec.xCoord - eyePos.xCoord;
+        double deltaY = smartHitVec.yCoord - eyePos.yCoord;
+        double deltaZ = smartHitVec.zCoord - eyePos.zCoord;
         return getRotations(deltaX, deltaY, deltaZ, currentYaw, currentPitch, maxAngle, smoothFactor);
     }
 
@@ -99,6 +119,18 @@ public class RotationUtil {
         return new float[]{targetYaw, targetPitch};
     }
 
+    public static float[] getRawTargetSmartVec(AxisAlignedBB box, float currentYaw, float currentPitch) {
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
+        Vec3 smartHitVec = getSmartHitVec(box, currentYaw, currentPitch);
+        double deltaX = smartHitVec.xCoord - eyePos.xCoord;
+        double deltaY = smartHitVec.yCoord - eyePos.yCoord;
+        double deltaZ = smartHitVec.zCoord - eyePos.zCoord;
+        double horizontalDistance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        float targetYaw = (float) (Math.atan2(deltaZ, deltaX) * 180.0 / Math.PI) - 90.0f;
+        float targetPitch = (float) (-Math.atan2(deltaY, horizontalDistance) * 180.0 / Math.PI);
+        return new float[]{targetYaw, targetPitch};
+    }
+
     public static float[] getRawTargetEntity(EntityLivingBase entity) {
         return getRawTargetEntity(entity, 0.0f);
     }
@@ -117,32 +149,43 @@ public class RotationUtil {
     public static float[] simulatedAnnealingStep(
             float currentYaw, float currentPitch,
             float targetYaw, float targetPitch,
-            float temperature, float smoothFactor) {
+            float temperature) {
 
         float yawDelta = MathHelper.wrapAngleTo180_float(targetYaw - currentYaw);
         float pitchDelta = MathHelper.wrapAngleTo180_float(targetPitch - currentPitch);
 
-        if (Math.abs(yawDelta) < 0.5f && Math.abs(pitchDelta) < 0.5f) {
+        if (Math.abs(yawDelta) < 1.0f && Math.abs(pitchDelta) < 1.0f) {
             return new float[]{targetYaw, targetPitch};
         }
 
-        float baseFactor = Math.min(1.0f, temperature / 5.0f);
-        float stepFactor = baseFactor * (1.0f - smoothFactor * 0.5f) + 0.1f;
+        float baseMoveFactor = Math.min(1.0f, 0.4f + (1.0f - Math.min(1.0f, temperature / 10.0f)) * 0.6f);
 
-        if (Math.abs(yawDelta) < 5.0f && Math.abs(pitchDelta) < 5.0f) {
-            stepFactor = 1.0f;
-        }
+        float jitterScale = temperature * 1.5f;
+        float yawJitter = (float) ThreadLocalRandom.current().nextGaussian() * jitterScale;
+        float pitchJitter = (float) ThreadLocalRandom.current().nextGaussian() * jitterScale * 0.5f;
 
-        float yawStep = yawDelta * stepFactor;
-        float pitchStep = pitchDelta * stepFactor;
+        float yawStep = yawDelta * baseMoveFactor + yawJitter;
+        float pitchStep = pitchDelta * baseMoveFactor + pitchJitter;
 
+        float maxTurnPerTick = 80.0f;
+        if (Math.abs(yawStep) > maxTurnPerTick) yawStep = Math.signum(yawStep) * maxTurnPerTick;
+        if (Math.abs(pitchStep) > maxTurnPerTick) pitchStep = Math.signum(pitchStep) * maxTurnPerTick;
+
+        if (Math.abs(yawStep) > Math.abs(yawDelta)) yawStep = yawDelta;
+        if (Math.abs(pitchStep) > Math.abs(pitchDelta)) pitchStep = pitchDelta;
+
+        float newYaw = currentYaw + yawStep;
+        float newPitch = currentPitch + pitchStep;
+
+        float diffYaw = newYaw - currentYaw;
+        float diffPitch = newPitch - currentPitch;
         float gcd = getSensitivityGCD();
         if (gcd > 0.0f) {
-            yawStep = Math.round(yawStep / gcd) * gcd;
-            pitchStep = Math.round(pitchStep / gcd) * gcd;
+            diffYaw = Math.round(diffYaw / gcd) * gcd;
+            diffPitch = Math.round(diffPitch / gcd) * gcd;
         }
 
-        return new float[]{currentYaw + yawStep, currentPitch + pitchStep};
+        return new float[]{currentYaw + diffYaw, currentPitch + diffPitch};
     }
 
     public static float[] smoothBack(float currentYaw, float currentPitch,
