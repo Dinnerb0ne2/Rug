@@ -75,7 +75,7 @@ public class BackTrack extends Module {
     private boolean isValidTarget(EntityLivingBase e) {
         if (!mc.theWorld.loadedEntityList.contains(e)) return false;
         if (e == mc.thePlayer || e == mc.thePlayer.ridingEntity) return false;
-        if (e == mc.getRenderViewEntity() || e == mc.getRenderViewEntity().ridingEntity) return false;
+        if (e == mc.getRenderViewEntity() || e.ridingEntity == mc.getRenderViewEntity()) return false;
         if (e.deathTime > 0) return false;
         if (!(e instanceof EntityPlayer)) return false;
         EntityPlayer ep = (EntityPlayer) e;
@@ -208,6 +208,14 @@ public class BackTrack extends Module {
             }
         }
 
+        if (packet instanceof S08PacketPlayerPosLook) {
+            if (blockingPacket) {
+                backtracking = false;
+                releaseAllPackets();
+            }
+            return;
+        }
+
         if (blockingPacket) {
             if (mc.thePlayer.ticksExisted < 20) return;
             if (packet instanceof S12PacketEntityVelocity && ((S12PacketEntityVelocity) packet).getEntityID() == mc.thePlayer.getEntityId() && this.releaseOnS12.getValue()) {
@@ -228,8 +236,7 @@ public class BackTrack extends Module {
                 || packet instanceof S14PacketEntity
                 || packet instanceof S18PacketEntityTeleport
                 || packet instanceof S19PacketEntityHeadLook
-                || packet instanceof S0FPacketSpawnMob
-                || packet instanceof S08PacketPlayerPosLook;
+                || packet instanceof S0FPacketSpawnMob;
     }
 
     private void releasePacketToDistance() {

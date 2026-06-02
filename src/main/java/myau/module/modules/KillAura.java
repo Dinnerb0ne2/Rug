@@ -668,11 +668,6 @@ public class KillAura extends Module {
                     yawDelta = Math.abs(yawDelta) <= 1.0f ? 0.0f : RotationUtil.smoothAngle(RotationUtil.clampAngle(yawDelta, fatigueMaxAngle), smoothFactor);
                     pitchDelta = Math.abs(pitchDelta) <= 1.0f ? 0.0f : RotationUtil.smoothAngle(RotationUtil.clampAngle(pitchDelta, fatigueMaxAngle), smoothFactor);
 
-                    float gcd = RotationUtil.getSensitivityGCD();
-                    if (gcd > 0.0f) {
-                        yawDelta = Math.round(yawDelta / gcd) * gcd;
-                        pitchDelta = Math.round(pitchDelta / gcd) * gcd;
-                    }
                     targetRotations = new float[]{event.getYaw() + yawDelta, event.getPitch() + pitchDelta};
                 }
 
@@ -692,6 +687,16 @@ public class KillAura extends Module {
                     targetRotations[0] += overshoot[0];
                     targetRotations[1] += overshoot[1];
                 }
+
+                float finalYawDelta = MathHelper.wrapAngleTo180_float(targetRotations[0] - event.getYaw());
+                float finalPitchDelta = MathHelper.wrapAngleTo180_float(targetRotations[1] - event.getPitch());
+                float finalGcd = RotationUtil.getSensitivityGCD();
+                if (finalGcd > 0.0f) {
+                    finalYawDelta = Math.round(finalYawDelta / finalGcd) * finalGcd;
+                    finalPitchDelta = Math.round(finalPitchDelta / finalGcd) * finalGcd;
+                }
+                targetRotations[0] = event.getYaw() + finalYawDelta;
+                targetRotations[1] = event.getPitch() + finalPitchDelta;
 
                 attackRotations = targetRotations;
                 if (this.rotations.getValue() == 2 || this.rotations.getValue() == 3) {
