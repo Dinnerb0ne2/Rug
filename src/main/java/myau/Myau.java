@@ -78,6 +78,7 @@ public class Myau {
         moduleManager.modules.put(ChestStealer.class, new ChestStealer());
         moduleManager.modules.put(Eagle.class, new Eagle());
         moduleManager.modules.put(ESP.class, new ESP());
+        moduleManager.modules.put(TimerRange.class, new TimerRange());
         moduleManager.modules.put(ExploitFixer.class, new ExploitFixer());
         moduleManager.modules.put(FastPlace.class, new FastPlace());
         moduleManager.modules.put(Freeze.class, new Freeze());
@@ -105,7 +106,7 @@ public class Myau {
         moduleManager.modules.put(NameTags.class, new NameTags());
         moduleManager.modules.put(NickHider.class, new NickHider());
         moduleManager.modules.put(NoFall.class, new NoFall());
-        moduleManager.modules.put(NoHitDelay.class, new NoHitDelay());
+        moduleManager.modules.put(NoClickDelay.class, new NoClickDelay());
         moduleManager.modules.put(NoHurtCam.class, new NoHurtCam());
         moduleManager.modules.put(NoJumpDelay.class, new NoJumpDelay());
         moduleManager.modules.put(NoRotate.class, new NoRotate());
