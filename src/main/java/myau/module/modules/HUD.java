@@ -7,6 +7,8 @@ import myau.event.EventTarget;
 import myau.event.types.EventType;
 import myau.events.Render2DEvent;
 import myau.events.TickEvent;
+import myau.ui.animation.Animation;
+import myau.ui.animation.Easing;
 import myau.mixin.IAccessorGuiChat;
 import myau.module.Module;
 import myau.util.ColorUtil;
@@ -21,13 +23,15 @@ import org.lwjgl.opengl.GL11;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class HUD extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    private List<Module> activeModules = new ArrayList<>();
+    private final Map<Module, Animation> moduleAnimations = new LinkedHashMap<>();
     public final ModeProperty colorMode = new ModeProperty(
             "color", 3, new String[]{"RAINBOW", "CHROMA", "ASTOLFO", "CUSTOM1", "CUSTOM12", "CUSTOM123"}
     );
@@ -143,11 +147,10 @@ public class HUD extends Module {
         );
     }
 
-    @EventTarget
-    public void onTick(TickEvent event) {
-        if (this.isEnabled() && event.getType() == EventType.POST) {
-            this.activeModules = Myau.moduleManager.modules.values().stream().filter(module -> module.isEnabled() && !module.isHidden()).sorted(Comparator.comparingInt(this::getModuleWidth).reversed()).collect(Collectors.<Module>toList());
-        }
+    @Override
+    public void onDisabled() {
+        super.onDisabled();
+        this.moduleAnimations.clear();
     }
 
     @EventTarget
@@ -169,6 +172,27 @@ public class HUD extends Module {
             }
         }
         if (this.isEnabled() && !mc.gameSettings.showDebugInfo) {
+            List<Module> currentActive = Myau.moduleManager.modules.values().stream()
+                    .filter(module -> module.isEnabled() && !module.isHidden())
+                    .sorted(Comparator.comparingInt(this::getModuleWidth).reversed())
+                    .collect(Collectors.toList());
+
+            for (Module m : currentActive) {
+                if (!moduleAnimations.containsKey(m)) {
+                    Animation anim = new Animation(Easing.EaseOutQuint, 300L);
+                    anim.start(true);
+                    moduleAnimations.put(m, anim);
+                } else {
+                    Animation anim = moduleAnimations.get(m);
+                    if (!anim.isForward()) {
+                        anim.start(true);
+                    }
+                }
+            }
+
+            List<Map.Entry<Module, Animation>> sortedAnimations = new ArrayList<>(moduleAnimations.entrySet());
+            sortedAnimations.sort((e1, e2) -> Integer.compare(this.getModuleWidth(e2.getKey()), this.getModuleWidth(e1.getKey())));
+
             float height = (float) mc.fontRendererObj.FONT_HEIGHT - 1.0F;
             float x = (float) this.offsetX.getValue()
                     + (1.0F + (this.showBar.getValue() ? (this.shadow.getValue() ? 2.0F : 1.0F) : 0.0F)) * this.scale.getValue();
@@ -183,42 +207,62 @@ public class HUD extends Module {
             GlStateManager.scale(this.scale.getValue(), this.scale.getValue(), 0.0F);
             long l = System.currentTimeMillis();
             long offset = 0L;
-            for (Module module : this.activeModules) {
+
+            List<Module> toRemove = new ArrayList<>();
+            for (Map.Entry<Module, Animation> entry : sortedAnimations) {
+                Module module = entry.getKey();
+                Animation anim = entry.getValue();
+                anim.update();
+
+                if (!currentActive.contains(module)) {
+                    if (anim.isForward()) {
+                        anim.start(false);
+                    }
+                    if (anim.isFinished() && anim.getValue() <= 0.001) {
+                        toRemove.add(module);
+                        continue;
+                    }
+                }
+
+                float progress = (float) anim.getValue();
                 String moduleName = this.getModuleName(module);
                 String[] moduleSuffix = this.getModuleSuffix(module);
                 float totalWidth = (float) (this.calculateStringWidth(moduleName, moduleSuffix) - (this.shadow.getValue() ? 0 : 1));
                 int color = this.getColor(l, offset).getRGB();
+
+                float slideOffset = totalWidth * (1.0f - progress);
+
                 RenderUtil.enableRenderState();
                 if (this.background.getValue() > 0) {
                     RenderUtil.drawRect(
-                            x / this.scale.getValue() - 1.0F - (this.posX.getValue() == 0 ? 0.0F : totalWidth),
+                            x / this.scale.getValue() - 1.0F - (this.posX.getValue() == 0 ? 0.0F : totalWidth) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                             y / this.scale.getValue() - (this.posY.getValue() == 0 ? (offset == 0L ? 1.0F : 0.0F) : (this.shadow.getValue() ? 1.0F : 0.0F)),
-                            x / this.scale.getValue() + 1.0F + (this.posX.getValue() == 0 ? totalWidth : 0.0F),
+                            x / this.scale.getValue() + 1.0F + (this.posX.getValue() == 0 ? totalWidth : 0.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                             y / this.scale.getValue() + height + (this.posY.getValue() == 0 ? (this.shadow.getValue() ? 1.0F : 0.0F) : (offset == 0L ? 1.0F : 0.0F)),
-                            new Color(0.0F, 0.0F, 0.0F, this.background.getValue().floatValue() / 100.0F).getRGB()
+                            new Color(0.0F, 0.0F, 0.0F, this.background.getValue().floatValue() / 100.0F * progress).getRGB()
                     );
                 }
                 if (this.showBar.getValue()) {
                     if (this.shadow.getValue()) {
                         RenderUtil.drawRect(
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -3.0F : 1.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -3.0F : 1.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() - (this.posY.getValue() == 0 ? (offset == 0L ? 1.0F : 0.0F) : 1.0F),
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 2.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 2.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() + height + (this.posY.getValue() == 0 ? 1.0F : (offset == 0L ? 1.0F : 0.0F)),
                                 color
                         );
                         RenderUtil.drawRect(
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 2.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 2.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() - (this.posY.getValue() == 0 ? (offset == 0L ? 1.0F : 0.0F) : 1.0F),
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -1.0F : 3.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -1.0F : 3.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() + height + (this.posY.getValue() == 0 ? 1.0F : (offset == 0L ? 1.0F : 0.0F)),
                                 (color & 16579836) >> 2 | color & 0xFF000000
                         );
                     } else {
                         RenderUtil.drawRect(
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 1.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -2.0F : 1.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() - (this.posY.getValue() == 0 ? (offset == 0L ? 1.0F : 0.0F) : 0.0F),
-                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -1.0F : 2.0F),
+                                x / this.scale.getValue() + (this.posX.getValue() == 0 ? -1.0F : 2.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                 y / this.scale.getValue() + height + (this.posY.getValue() == 0 ? 0.0F : (offset == 0L ? 1.0F : 0.0F)),
                                 color
                         );
@@ -228,12 +272,12 @@ public class HUD extends Module {
                 GlStateManager.disableDepth();
                 if (this.shadow.getValue()) {
                     mc.fontRendererObj
-                            .drawStringWithShadow(moduleName, x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F), y / this.scale.getValue(), color);
+                            .drawStringWithShadow(moduleName, x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset), y / this.scale.getValue(), color);
                 } else {
                     mc.fontRendererObj
                             .drawString(
                                     moduleName,
-                                    x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F),
+                                    x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                     y / this.scale.getValue() + (this.posY.getValue() == 1 ? 1.0F : 0.0F),
                                     color,
                                     false
@@ -246,7 +290,7 @@ public class HUD extends Module {
                             mc.fontRendererObj
                                     .drawStringWithShadow(
                                             string,
-                                            x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + width,
+                                            x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + width + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                             y / this.scale.getValue(),
                                             ChatColors.GRAY.toAwtColor()
                                     );
@@ -254,7 +298,7 @@ public class HUD extends Module {
                             mc.fontRendererObj
                                     .drawString(
                                             string,
-                                            x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + width,
+                                            x / this.scale.getValue() - (this.posX.getValue() == 1 ? totalWidth : 0.0F) + width + (this.posX.getValue() == 0 ? -slideOffset : slideOffset),
                                             y / this.scale.getValue() + (this.posY.getValue() == 1 ? 1.0F : 0.0F),
                                             ChatColors.GRAY.toAwtColor(),
                                             false
@@ -263,9 +307,14 @@ public class HUD extends Module {
                         width += (float) mc.fontRendererObj.getStringWidth(string) + (this.shadow.getValue() ? 3.0F : 2.0F);
                     }
                 }
-                y += (height + (this.shadow.getValue() ? 1.0F : 0.0F)) * this.scale.getValue() * (this.posY.getValue() == 0 ? 1.0F : -1.0F);
+                y += (height + (this.shadow.getValue() ? 1.0F : 0.0F)) * this.scale.getValue() * progress * (this.posY.getValue() == 0 ? 1.0F : -1.0F);
                 offset++;
             }
+
+            for (Module m : toRemove) {
+                moduleAnimations.remove(m);
+            }
+
             if (this.blinkTimer.getValue()) {
                 BlinkModules blinkingModule = Myau.blinkManager.getBlinkingModule();
                 if (blinkingModule != BlinkModules.NONE && blinkingModule != BlinkModules.AUTO_BLOCK) {

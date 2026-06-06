@@ -8,6 +8,7 @@ import myau.events.*;
 import myau.management.RotationState;
 import myau.module.Module;
 import myau.property.properties.BooleanProperty;
+import myau.property.properties.FloatProperty;
 import myau.property.properties.IntProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
@@ -63,10 +64,13 @@ public class Scaffold extends Module {
     private boolean shouldKeepY = false;
     private boolean towering = false;
     private EnumFacing targetFacing = null;
-    
     private int placedBlocksCount = 0;
     private boolean isEagleSneaking = false;
     private long eagleSneakStartTime = 0L;
+    private boolean wasRotating = false;
+    private boolean isReturning = false;
+    private float returnYaw = 0.0F;
+    private float returnPitch = 0.0F;
 
     public final ModeProperty rotationMode = new ModeProperty("rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS"});
     public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT"});
@@ -83,10 +87,12 @@ public class Scaffold extends Module {
     public final BooleanProperty swing = new BooleanProperty("swing", true);
     public final BooleanProperty itemSpoof = new BooleanProperty("item-spoof", false);
     public final BooleanProperty blockCounter = new BooleanProperty("block-counter", true);
-    
     public final BooleanProperty eagle = new BooleanProperty("eagle", false);
     public final IntProperty eagleBlocks = new IntProperty("eagle-blocks", 1, 1, 20, () -> this.eagle.getValue());
     public final IntProperty eagleMs = new IntProperty("eagle-ms", 100, 1, 1000, () -> this.eagle.getValue());
+    public final PercentProperty smoothing = new PercentProperty("smoothing", 0);
+    public final BooleanProperty smoothBackProp = new BooleanProperty("smooth-back", true);
+    public final FloatProperty smoothBackSpeed = new FloatProperty("smooth-back-speed", 0.3F, 0.05F, 1.0F);
 
     private boolean shouldStopSprint() {
         if (this.isTowering()) {
@@ -253,6 +259,38 @@ public class Scaffold extends Module {
             return keepY && this.stage > 0 || tower && mc.gameSettings.keyBindJump.isKeyDown();
         } else {
             return false;
+        }
+    }
+
+    private void handleSmoothBack(UpdateEvent event) {
+        if (!this.smoothBackProp.getValue()) {
+            this.isReturning = false;
+            this.wasRotating = false;
+            return;
+        }
+        if (!this.wasRotating) {
+            this.isReturning = false;
+            return;
+        }
+        if (!this.isReturning) {
+            this.isReturning = true;
+            this.returnYaw = event.getYaw();
+            this.returnPitch = event.getPitch();
+        }
+        float playerYaw = mc.thePlayer.rotationYaw;
+        float playerPitch = mc.thePlayer.rotationPitch;
+        float backSpeed = this.smoothBackSpeed.getValue();
+        float[] back = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, backSpeed);
+        this.returnYaw = back[0];
+        this.returnPitch = back[1];
+        float yD = Math.abs(MathHelper.wrapAngleTo180_float(playerYaw - this.returnYaw));
+        float pD = Math.abs(MathHelper.wrapAngleTo180_float(playerPitch - this.returnPitch));
+        if (yD > 1.0F || pD > 1.0F) {
+            event.setRotation(this.returnYaw, this.returnPitch, 3);
+            if (this.moveFix.getValue() == 1) event.setPervRotation(this.returnYaw, 3);
+        } else {
+            this.isReturning = false;
+            this.wasRotating = false;
         }
     }
 
@@ -425,10 +463,27 @@ public class Scaffold extends Module {
                         this.rotationTick = 3;
                         this.towering = true;
                     }
+                    float smoothFactor = (float) this.smoothing.getValue() / 100.0F;
+                    float yawDelta = MathHelper.wrapAngleTo180_float(targetYaw - event.getYaw());
+                    float pitchDelta = MathHelper.wrapAngleTo180_float(targetPitch - event.getPitch());
+                    yawDelta = RotationUtil.smoothAngle(RotationUtil.clampAngle(yawDelta, 180.0F), smoothFactor);
+                    pitchDelta = RotationUtil.smoothAngle(RotationUtil.clampAngle(pitchDelta, 180.0F), smoothFactor);
+                    float gcd = RotationUtil.getSensitivityGCD();
+                    if (gcd > 0.0F) {
+                        yawDelta = Math.round(yawDelta / gcd) * gcd;
+                        pitchDelta = Math.round(pitchDelta / gcd) * gcd;
+                    }
+                    targetYaw = event.getYaw() + yawDelta;
+                    targetPitch = event.getPitch() + pitchDelta;
+                    this.yaw = targetYaw;
+                    this.pitch = targetPitch;
                     event.setRotation(targetYaw, targetPitch, 3);
                     if (this.moveFix.getValue() == 1) {
                         event.setPervRotation(targetYaw, 3);
                     }
+                    this.wasRotating = true;
+                } else {
+                    this.handleSmoothBack(event);
                 }
                 if (blockData != null && hitVec != null && this.rotationTick <= 0) {
                     this.place(blockData.blockPos(), blockData.facing(), hitVec);
@@ -486,6 +541,8 @@ public class Scaffold extends Module {
                         }
                     }
                 }
+            } else {
+                this.handleSmoothBack(event);
             }
         }
     }
@@ -618,7 +675,7 @@ public class Scaffold extends Module {
                             default:
                                 this.towerTick = 0;
                                 this.towerDelay = 0;
-                }
+                        }
                     default:
                         this.towerTick = 0;
                         this.towerDelay = 0;
@@ -768,6 +825,10 @@ public class Scaffold extends Module {
         this.towering = false;
         this.placedBlocksCount = 0;
         this.isEagleSneaking = false;
+        this.wasRotating = false;
+        this.isReturning = false;
+        this.returnYaw = 0.0F;
+        this.returnPitch = 0.0F;
     }
 
     @Override
@@ -775,6 +836,8 @@ public class Scaffold extends Module {
         if (mc.thePlayer != null && this.lastSlot != -1) {
             mc.thePlayer.inventory.currentItem = this.lastSlot;
         }
+        this.wasRotating = false;
+        this.isReturning = false;
     }
 
     public static class BlockData {
