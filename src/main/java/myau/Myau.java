@@ -106,6 +106,7 @@ public class Myau {
         moduleManager.modules.put(NameTags.class, new NameTags());
         moduleManager.modules.put(NickHider.class, new NickHider());
         moduleManager.modules.put(NoFall.class, new NoFall());
+        moduleManager.modules.put(Chat.class, new Chat());
         moduleManager.modules.put(NoClickDelay.class, new NoClickDelay());
         moduleManager.modules.put(NoHurtCam.class, new NoHurtCam());
         moduleManager.modules.put(NoJumpDelay.class, new NoJumpDelay());
