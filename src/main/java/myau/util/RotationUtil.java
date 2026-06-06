@@ -146,46 +146,74 @@ public class RotationUtil {
         return new float[]{targetYaw, targetPitch};
     }
 
-    public static float[] simulatedAnnealingStep(
-            float currentYaw, float currentPitch,
-            float targetYaw, float targetPitch,
-            float temperature) {
+    public static float[] simulatedAnnealingBoxStep(
+            AxisAlignedBB box,
+            float playerYaw, float playerPitch,
+            float currentPointX, float currentPointY, float currentPointZ,
+            float temperature, int iterations,
+            boolean checkWalls) {
 
-        float yawDelta = MathHelper.wrapAngleTo180_float(targetYaw - currentYaw);
-        float pitchDelta = MathHelper.wrapAngleTo180_float(targetPitch - currentPitch);
+        Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
 
-        if (Math.abs(yawDelta) < 1.0f && Math.abs(pitchDelta) < 1.0f) {
-            return new float[]{targetYaw, targetPitch};
+        double cpX = Math.max(box.minX, Math.min(box.maxX, currentPointX));
+        double cpY = Math.max(box.minY, Math.min(box.maxY, currentPointY));
+        double cpZ = Math.max(box.minZ, Math.min(box.maxZ, currentPointZ));
+
+        double currentEnergy = calculateBoxEnergy(cpX, cpY, cpZ, eyePos, playerYaw, playerPitch);
+
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+
+        for (int i = 0; i < iterations; i++) {
+            double perturbScale = temperature * 0.35 + 0.08;
+            double newX = Math.max(box.minX, Math.min(box.maxX, cpX + rand.nextGaussian() * perturbScale));
+            double newY = Math.max(box.minY, Math.min(box.maxY, cpY + rand.nextGaussian() * perturbScale));
+            double newZ = Math.max(box.minZ, Math.min(box.maxZ, cpZ + rand.nextGaussian() * perturbScale));
+
+            if (checkWalls) {
+                Vec3 newVec = new Vec3(newX, newY, newZ);
+                MovingObjectPosition wallHit = mc.theWorld.rayTraceBlocks(eyePos, newVec);
+                if (wallHit != null) {
+                    continue;
+                }
+            }
+
+            double newEnergy = calculateBoxEnergy(newX, newY, newZ, eyePos, playerYaw, playerPitch);
+            double deltaE = newEnergy - currentEnergy;
+
+            if (deltaE <= 0 || rand.nextDouble() < Math.exp(-deltaE / Math.max(0.001, temperature))) {
+                cpX = newX;
+                cpY = newY;
+                cpZ = newZ;
+                currentEnergy = newEnergy;
+            }
         }
 
-        float baseMoveFactor = Math.min(1.0f, 0.4f + (1.0f - Math.min(1.0f, temperature / 10.0f)) * 0.6f);
+        double deltaX = cpX - eyePos.xCoord;
+        double deltaY = cpY - eyePos.yCoord;
+        double deltaZ = cpZ - eyePos.zCoord;
+        double hDist = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        float targetYaw = (float) (Math.atan2(deltaZ, deltaX) * 180.0 / Math.PI) - 90.0f;
+        float targetPitch = (float) (-Math.atan2(deltaY, hDist) * 180.0 / Math.PI);
 
-        float jitterScale = temperature * 1.5f;
-        float yawJitter = (float) ThreadLocalRandom.current().nextGaussian() * jitterScale;
-        float pitchJitter = (float) ThreadLocalRandom.current().nextGaussian() * jitterScale * 0.5f;
+        return new float[]{targetYaw, targetPitch, (float) cpX, (float) cpY, (float) cpZ};
+    }
 
-        float yawStep = yawDelta * baseMoveFactor + yawJitter;
-        float pitchStep = pitchDelta * baseMoveFactor + pitchJitter;
+    private static double calculateBoxEnergy(double px, double py, double pz, Vec3 eyePos, float playerYaw, float playerPitch) {
+        double deltaX = px - eyePos.xCoord;
+        double deltaY = py - eyePos.yCoord;
+        double deltaZ = pz - eyePos.zCoord;
+        double hDist = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        double rotYaw = Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0;
+        double rotPitch = -Math.toDegrees(Math.atan2(deltaY, hDist));
 
-        float maxTurnPerTick = 80.0f;
-        if (Math.abs(yawStep) > maxTurnPerTick) yawStep = Math.signum(yawStep) * maxTurnPerTick;
-        if (Math.abs(pitchStep) > maxTurnPerTick) pitchStep = Math.signum(pitchStep) * maxTurnPerTick;
+        double yawDiff = MathHelper.wrapAngleTo180_float((float) (rotYaw - playerYaw));
+        double pitchDiff = MathHelper.wrapAngleTo180_float((float) (rotPitch - playerPitch));
+        double angleDiff = Math.sqrt(yawDiff * yawDiff + pitchDiff * pitchDiff);
 
-        if (Math.abs(yawStep) > Math.abs(yawDelta)) yawStep = yawDelta;
-        if (Math.abs(pitchStep) > Math.abs(pitchDelta)) pitchStep = pitchDelta;
+        double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        double heightDiff = Math.abs(py - eyePos.yCoord);
 
-        float newYaw = currentYaw + yawStep;
-        float newPitch = currentPitch + pitchStep;
-
-        float diffYaw = newYaw - currentYaw;
-        float diffPitch = newPitch - currentPitch;
-        float gcd = getSensitivityGCD();
-        if (gcd > 0.0f) {
-            diffYaw = Math.round(diffYaw / gcd) * gcd;
-            diffPitch = Math.round(diffPitch / gcd) * gcd;
-        }
-
-        return new float[]{currentYaw + diffYaw, currentPitch + diffPitch};
+        return 0.3 * angleDiff + 0.2 * distance + 0.5 * heightDiff;
     }
 
     public static float[] smoothBack(float currentYaw, float currentPitch,
