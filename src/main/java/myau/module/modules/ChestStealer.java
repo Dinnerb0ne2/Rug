@@ -16,6 +16,7 @@ import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.init.Items;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.ContainerChest;
 import net.minecraft.inventory.IInventory;
@@ -29,14 +30,14 @@ public class ChestStealer extends Module {
     private int oDelay = 0;
     private boolean inChest = false;
     private boolean warnedFull = false;
-    public final IntProperty minDelay = new IntProperty("min-delay", 1, 0, 20);
-    public final IntProperty maxDelay = new IntProperty("max-delay", 2, 0, 20);
-    public final IntProperty openDelay = new IntProperty("open-delay", 1, 0, 20);
-    public final BooleanProperty autoClose = new BooleanProperty("auto-close", false);
-    public final BooleanProperty nameCheck = new BooleanProperty("name-check", true);
-    public final BooleanProperty skipTrash = new BooleanProperty("skip-trash", true);
-    public final BooleanProperty moreArmor = new BooleanProperty("more-armor", false);
-    public final BooleanProperty moreSword = new BooleanProperty("more-sword", false);
+    public final IntProperty minDelay = new IntProperty("Min-Delay", 1, 0, 20);
+    public final IntProperty maxDelay = new IntProperty("Max-Delay", 2, 0, 20);
+    public final IntProperty openDelay = new IntProperty("Open-Delay", 1, 0, 20);
+    public final BooleanProperty autoClose = new BooleanProperty("Auto-Close", false);
+    public final BooleanProperty nameCheck = new BooleanProperty("Name-Check", true);
+    public final BooleanProperty skipTrash = new BooleanProperty("Skip-Trash", true);
+    public final BooleanProperty moreArmor = new BooleanProperty("More-Armor", false);
+    public final BooleanProperty moreSword = new BooleanProperty("More-Sword", false);
 
     private boolean isValidGameMode() {
         GameType gameType = mc.playerController.getCurrentGameType();
@@ -46,7 +47,7 @@ public class ChestStealer extends Module {
     private boolean isMoreArmor(ItemStack itemStack) {
         if (itemStack == null) return false;
         if (!this.moreArmor.getValue()) return false;
-        if (! (itemStack.getItem() instanceof ItemArmor)) return false;
+        if (!(itemStack.getItem() instanceof ItemArmor)) return false;
         ItemArmor.ArmorMaterial armorMaterial = ((ItemArmor) itemStack.getItem()).getArmorMaterial();
         if (armorMaterial == ItemArmor.ArmorMaterial.DIAMOND) return true;
         return armorMaterial == ItemArmor.ArmorMaterial.IRON && itemStack.isItemEnchanted();
@@ -55,7 +56,7 @@ public class ChestStealer extends Module {
     private boolean isMoreSword(ItemStack itemStack) {
         if (itemStack == null) return false;
         if (!this.moreSword.getValue()) return false;
-        if (! (itemStack.getItem() instanceof ItemSword)) return false;
+        if (!(itemStack.getItem() instanceof ItemSword)) return false;
         Item.ToolMaterial swordMaterial = ((IAccessorItemSword) itemStack.getItem()).getMaterial();
         if (swordMaterial == Item.ToolMaterial.EMERALD) return true;
         if (EnchantmentHelper.getEnchantmentLevel(Enchantment.fireAspect.effectId, itemStack) != 0) return true;
@@ -65,18 +66,67 @@ public class ChestStealer extends Module {
     private boolean isInvManagerRequire(ItemStack itemStack) {
         if (itemStack == null) return false;
         InvManager invManager = (InvManager) Myau.moduleManager.modules.get(InvManager.class);
+
+        if (invManager.isEnabled()) {
+            int invCount = 0;
+            for (int i = 0; i < 36; i++) {
+                if (mc.thePlayer.inventory.getStackInSlot(i) != null) {
+                    invCount++;
+                }
+            }
+            if (invCount >= invManager.inv.getValue()) {
+                return false;
+            }
+        }
+
         if (ItemUtil.ItemType.Block.contains(itemStack)) {
-            return !invManager.isEnabled() || ItemUtil.findInventorySlot(ItemUtil.ItemType.Block) < invManager.blocks.getValue();
+            if (!invManager.isEnabled()) return true;
+            int blockCount = 0;
+            for (int i = 0; i < 36; i++) {
+                ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                if (stack != null && ItemUtil.ItemType.Block.contains(stack)) {
+                    blockCount += stack.stackSize;
+                }
+            }
+            return blockCount < invManager.blocks.getValue();
         }
-        if (ItemUtil.ItemType.Projectile.contains(itemStack)) {
-            return !invManager.isEnabled() || ItemUtil.findInventorySlot(ItemUtil.ItemType.Projectile) < invManager.projectiles.getValue();
+
+        if (itemStack.getItem() == Items.egg || itemStack.getItem() == Items.snowball) {
+            if (!invManager.isEnabled()) return true;
+            int throwCount = 0;
+            for (int i = 0; i < 36; i++) {
+                ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                if (stack != null && (stack.getItem() == Items.egg || stack.getItem() == Items.snowball)) {
+                    throwCount += stack.stackSize;
+                }
+            }
+            return throwCount < invManager.throwable.getValue();
         }
-        if (ItemUtil.ItemType.FishRod.contains(itemStack)) {
-            return ItemUtil.findInventorySlot(ItemUtil.ItemType.Projectile) == 0;
+
+        if (itemStack.getItem() == Items.arrow) {
+            if (!invManager.isEnabled()) return true;
+            int arrowCount = 0;
+            for (int i = 0; i < 36; i++) {
+                ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                if (stack != null && stack.getItem() == Items.arrow) {
+                    arrowCount += stack.stackSize;
+                }
+            }
+            return arrowCount < invManager.arrow.getValue();
         }
-        if (ItemUtil.ItemType.Arrow.contains(itemStack)) {
-            return !invManager.isEnabled() || ItemUtil.findInventorySlot(ItemUtil.ItemType.Arrow) < invManager.arrow.getValue();
+
+        if (itemStack.getItem() == Items.fishing_rod) {
+            if (!invManager.isEnabled()) return true;
+            int rodCount = 0;
+            for (int i = 0; i < 36; i++) {
+                ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+                if (stack != null && stack.getItem() == Items.fishing_rod) {
+                    rodCount += stack.stackSize;
+                }
+            }
+            return rodCount < invManager.fishrod.getValue();
         }
+
         return false;
     }
 

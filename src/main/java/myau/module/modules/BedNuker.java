@@ -69,18 +69,18 @@ public class BedNuker extends Module {
     private boolean readyToBreak = false;
     private boolean breaking = false;
     private boolean waitingForStart = false;
-    public final ModeProperty mode = new ModeProperty("mode", 0, new String[]{"LEGIT", "SWAP"});
-    public final FloatProperty range = new FloatProperty("range", 4.5F, 3.0F, 6.0F);
-    public final PercentProperty speed = new PercentProperty("speed", 0);
-    public final BooleanProperty groundSpeed = new BooleanProperty("ground-spoof", false);
-    public final ModeProperty ignoreVelocity = new ModeProperty("ignore-velocity", 0, new String[]{"NONE", "CANCEL", "DELAY"});
-    public final BooleanProperty surroundings = new BooleanProperty("surroundings", true);
-    public final BooleanProperty toolCheck = new BooleanProperty("tool-check", true);
-    public final BooleanProperty whiteList = new BooleanProperty("whitelist", true);
-    public final BooleanProperty swing = new BooleanProperty("swing", true);
-    public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT", "STRICT"});
-    public final ModeProperty showTarget = new ModeProperty("show-target", 1, new String[]{"NONE", "DEFAULT", "HUD"});
-    public final ModeProperty showProgress = new ModeProperty("show-progress", 1, new String[]{"NONE", "DEFAULT", "HUD"});
+    public final ModeProperty mode = new ModeProperty("Mode", 0, new String[]{"Legit", "Swap"});
+    public final FloatProperty range = new FloatProperty("Range", 4.5F, 3.0F, 6.0F);
+    public final PercentProperty speed = new PercentProperty("Speed", 0);
+    public final BooleanProperty groundSpeed = new BooleanProperty("Ground-Spoof", false);
+    public final ModeProperty ignoreVelocity = new ModeProperty("ignore-velocity", 0, new String[]{"None", "Cance", "Delay"});
+    public final BooleanProperty surroundings = new BooleanProperty("Surroundings", true);
+    public final BooleanProperty toolCheck = new BooleanProperty("Tool-Check", true);
+    public final BooleanProperty whiteList = new BooleanProperty("Whitelist", true);
+    public final BooleanProperty swing = new BooleanProperty("Swing", true);
+    public final ModeProperty moveFix = new ModeProperty("Move-Fix", 1, new String[]{"None", "Slient", "Strict"});
+    public final ModeProperty showTarget = new ModeProperty("Show-Target", 1, new String[]{"None", "Default", "Hud"});
+    public final ModeProperty showProgress = new ModeProperty("Show-Progress", 1, new String[]{"None", "Default", "Hud"});
 
     private void resetBreaking() {
         if (this.targetBed != null) {

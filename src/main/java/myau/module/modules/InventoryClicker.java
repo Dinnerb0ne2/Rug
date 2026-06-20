@@ -12,7 +12,7 @@ import org.lwjgl.input.Mouse;
 
 public class InventoryClicker extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    public final IntProperty triggerTicks = new IntProperty("ticks", 2, 0, 20);
+    public final IntProperty triggerTicks = new IntProperty("Ticks", 2, 0, 20);
     public int ticks;
 
     public InventoryClicker() {

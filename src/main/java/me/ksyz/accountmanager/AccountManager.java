@@ -12,12 +12,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Optional;
 
-/*
- * This file is derived from https://github.com/ksyzov/AccountManager.
- * Originally licensed under the GNU LGPL.
- *
- * This modified version is licensed under the GNU GPL v3.
- */
 public class AccountManager {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final File file = new File(mc.mcDataDir, "openmyau.accounts.json");

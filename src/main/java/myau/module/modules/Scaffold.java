@@ -8,6 +8,8 @@ import myau.events.*;
 import myau.management.RotationState;
 import myau.module.Module;
 import myau.property.properties.BooleanProperty;
+import myau.property.properties.FloatProperty;
+import myau.property.properties.IntProperty;
 import myau.property.properties.ModeProperty;
 import myau.property.properties.PercentProperty;
 import myau.util.*;
@@ -62,7 +64,16 @@ public class Scaffold extends Module {
     private boolean shouldKeepY = false;
     private boolean towering = false;
     private EnumFacing targetFacing = null;
-    public final ModeProperty rotationMode = new ModeProperty("rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS"});
+    private int placedBlocksCount = 0;
+    private boolean isEagleSneaking = false;
+    private long eagleSneakStartTime = 0L;
+    private boolean wasRotating = false;
+    private boolean isReturning = false;
+    private float returnYaw = 0.0F;
+    private float returnPitch = 0.0F;
+    private boolean isOnRightSide = false;
+
+    public final ModeProperty rotationMode = new ModeProperty("rotations", 2, new String[]{"NONE", "DEFAULT", "BACKWARDS", "SIDEWAYS", "STRICT", "GOD_BRIDGE"});
     public final ModeProperty moveFix = new ModeProperty("move-fix", 1, new String[]{"NONE", "SILENT"});
     public final ModeProperty sprintMode = new ModeProperty("sprint", 0, new String[]{"NONE", "VANILLA"});
     public final PercentProperty groundMotion = new PercentProperty("ground-motion", 100);
@@ -77,6 +88,26 @@ public class Scaffold extends Module {
     public final BooleanProperty swing = new BooleanProperty("swing", true);
     public final BooleanProperty itemSpoof = new BooleanProperty("item-spoof", false);
     public final BooleanProperty blockCounter = new BooleanProperty("block-counter", true);
+    public final BooleanProperty eagle = new BooleanProperty("eagle", false);
+    public final IntProperty eagleBlocks = new IntProperty("eagle-blocks", 1, 1, 20, () -> this.eagle.getValue());
+    public final IntProperty eagleMs = new IntProperty("eagle-ms", 100, 1, 1000, () -> this.eagle.getValue());
+    public final PercentProperty smoothing = new PercentProperty("smoothing", 0);
+    public final BooleanProperty smoothBackProp = new BooleanProperty("smooth-back", true);
+    public final FloatProperty smoothBackSpeed = new FloatProperty("smooth-back-speed", 0.3F, 0.05F, 1.0F);
+    public final FloatProperty godBridgeMinPitch = new FloatProperty("god-min-pitch", 55.0F, 50.0F, 90.0F);
+    public final FloatProperty godBridgeMaxPitch = new FloatProperty("god-max-pitch", 75.0F, 50.0F, 90.0F);
+
+    private Vec3 verifyPlacement(BlockPos pos, EnumFacing facing) {
+        float checkYaw = this.rotationMode.getValue() != 0 ? this.yaw : mc.thePlayer.rotationYaw;
+        float checkPitch = this.rotationMode.getValue() != 0 ? this.pitch : mc.thePlayer.rotationPitch;
+        MovingObjectPosition mop = RotationUtil.rayTrace(checkYaw, checkPitch, mc.playerController.getBlockReachDistance(), 1.0F);
+        if (mop != null && mop.typeOfHit == MovingObjectType.BLOCK
+                && mop.getBlockPos().equals(pos)
+                && mop.sideHit == facing) {
+            return mop.hitVec;
+        }
+        return null;
+    }
 
     private boolean shouldStopSprint() {
         if (this.isTowering()) {
@@ -175,6 +206,14 @@ public class Scaffold extends Module {
                 } else {
                     PacketUtil.sendPacket(new C0APacketAnimation());
                 }
+                if (this.eagle.getValue()) {
+                    this.placedBlocksCount++;
+                    if (this.placedBlocksCount >= this.eagleBlocks.getValue()) {
+                        this.placedBlocksCount = 0;
+                        this.isEagleSneaking = true;
+                        this.eagleSneakStartTime = System.currentTimeMillis();
+                    }
+                }
             }
         }
     }
@@ -236,6 +275,54 @@ public class Scaffold extends Module {
         } else {
             return false;
         }
+    }
+
+    private void handleSmoothBack(UpdateEvent event) {
+        if (!this.smoothBackProp.getValue()) {
+            this.isReturning = false;
+            this.wasRotating = false;
+            return;
+        }
+        if (!this.wasRotating) {
+            this.isReturning = false;
+            return;
+        }
+        if (!this.isReturning) {
+            this.isReturning = true;
+            this.returnYaw = event.getYaw();
+            this.returnPitch = event.getPitch();
+        }
+        float playerYaw = mc.thePlayer.rotationYaw;
+        float playerPitch = mc.thePlayer.rotationPitch;
+        float backSpeed = this.smoothBackSpeed.getValue();
+        float[] back = RotationUtil.smoothBack(this.returnYaw, this.returnPitch, playerYaw, playerPitch, backSpeed);
+        this.returnYaw = back[0];
+        this.returnPitch = back[1];
+        float yD = Math.abs(MathHelper.wrapAngleTo180_float(playerYaw - this.returnYaw));
+        float pD = Math.abs(MathHelper.wrapAngleTo180_float(playerPitch - this.returnPitch));
+        if (yD > 1.0F || pD > 1.0F) {
+            event.setRotation(this.returnYaw, this.returnPitch, 3);
+            if (this.moveFix.getValue() == 1) event.setPervRotation(this.returnYaw, 3);
+        } else {
+            this.isReturning = false;
+            this.wasRotating = false;
+        }
+    }
+
+    private Vec3 getOptimizedHitVec(BlockPos pos, EnumFacing facing) {
+        double x = pos.getX() + 0.5 + facing.getFrontOffsetX() * 0.5;
+        double y = pos.getY() + 0.5 + facing.getFrontOffsetY() * 0.5;
+        double z = pos.getZ() + 0.5 + facing.getFrontOffsetZ() * 0.5;
+        if (facing.getAxis() != EnumFacing.Axis.X) {
+            x = Math.max(pos.getX(), Math.min(pos.getX() + 1, mc.thePlayer.posX));
+        }
+        if (facing.getAxis() != EnumFacing.Axis.Y) {
+            y = Math.max(pos.getY(), Math.min(pos.getY() + 1, mc.thePlayer.posY + mc.thePlayer.getEyeHeight()));
+        }
+        if (facing.getAxis() != EnumFacing.Axis.Z) {
+            z = Math.max(pos.getZ(), Math.min(pos.getZ() + 1, mc.thePlayer.posZ));
+        }
+        return new Vec3(x, y, z);
     }
 
     public Scaffold() {
@@ -319,10 +406,26 @@ public class Scaffold extends Module {
                             } else {
                                 this.yaw = RotationUtil.quantizeAngle(diagonalYaw);
                             }
+                            break;
+                        case 4:
+                            if (this.yaw == -180.0F && this.pitch == 0.0F) {
+                                this.yaw = RotationUtil.quantizeAngle(yawDiffTo180);
+                                this.pitch = RotationUtil.quantizeAngle(85.0F);
+                            } else {
+                                this.yaw = RotationUtil.quantizeAngle(yawDiffTo180);
+                            }
+                            break;
+                        case 5:
+                            if (this.yaw == -180.0F && this.pitch == 0.0F) {
+                                this.yaw = RotationUtil.quantizeAngle(yawDiffTo180);
+                                this.pitch = RotationUtil.quantizeAngle(75.0F);
+                            } else {
+                                this.yaw = RotationUtil.quantizeAngle(yawDiffTo180);
+                            }
+                            break;
                     }
                 }
                 BlockData blockData = this.getBlockData();
-                Vec3 hitVec = null;
                 if (blockData != null) {
                     double[] x = placeOffsets;
                     double[] y = placeOffsets;
@@ -367,7 +470,6 @@ public class Scaffold extends Module {
                                         bestYaw = rotations[0];
                                         bestPitch = rotations[1];
                                         bestDiff = totalDiff;
-                                        hitVec = mop.hitVec;
                                     }
                                 }
                             }
@@ -378,6 +480,54 @@ public class Scaffold extends Module {
                         this.pitch = bestPitch;
                         this.canRotate = true;
                     }
+
+                    if (this.rotationMode.getValue() == 4) {
+                        Vec3 optimizedHitVec = this.getOptimizedHitVec(blockData.blockPos(), blockData.facing());
+                        double relX = optimizedHitVec.xCoord - mc.thePlayer.posX;
+                        double relY = optimizedHitVec.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
+                        double relZ = optimizedHitVec.zCoord - mc.thePlayer.posZ;
+                        float baseYaw = RotationUtil.wrapAngleDiff(this.yaw, event.getYaw());
+                        float[] rotations = RotationUtil.getRotationsTo(relX, relY, relZ, baseYaw, this.pitch);
+                        MovingObjectPosition mop = RotationUtil.rayTrace(rotations[0], rotations[1], mc.playerController.getBlockReachDistance(), 1.0F);
+                        if (mop != null && mop.typeOfHit == MovingObjectType.BLOCK
+                                && mop.getBlockPos().equals(blockData.blockPos()) && mop.sideHit == blockData.facing()) {
+                            this.yaw = rotations[0];
+                            this.pitch = rotations[1];
+                            this.canRotate = true;
+                        }
+                    }
+
+                    if (this.rotationMode.getValue() == 5) {
+                        float movingYaw = currentYaw + 180.0F;
+
+                        if (mc.thePlayer.onGround) {
+                            this.isOnRightSide = Math.floor(mc.thePlayer.posX + Math.cos(Math.toRadians(movingYaw)) * 0.5) != Math.floor(mc.thePlayer.posX) ||
+                                    Math.floor(mc.thePlayer.posZ + Math.sin(Math.toRadians(movingYaw)) * 0.5) != Math.floor(mc.thePlayer.posZ);
+
+                            EnumFacing moveFacing = this.yawToFacing(MathHelper.wrapAngleTo180_float(movingYaw));
+                            BlockPos posInDirection = mc.thePlayer.getPosition().offset(moveFacing, 1);
+
+                            boolean isLeaningOffBlock = BlockUtil.isReplaceable(mc.thePlayer.getPosition().down());
+                            boolean nextBlockIsAir = BlockUtil.isReplaceable(posInDirection.down());
+
+                            if (isLeaningOffBlock && nextBlockIsAir) {
+                                this.isOnRightSide = !this.isOnRightSide;
+                            }
+                        }
+
+                        boolean isMovingStraight = !this.isDiagonal(currentYaw);
+                        float godYaw = isMovingStraight ? (movingYaw + (this.isOnRightSide ? 45 : -45)) : movingYaw;
+                        float finalYaw = Math.round(godYaw / 45f) * 45f;
+
+                        for (float i = this.godBridgeMinPitch.getValue(); i < this.godBridgeMaxPitch.getValue(); i += 0.01f) {
+                            MovingObjectPosition ray = RotationUtil.rayTrace(finalYaw, i, mc.playerController.getBlockReachDistance(), 1.0F);
+                            if (ray != null && ray.typeOfHit == MovingObjectType.BLOCK && ray.getBlockPos().equals(blockData.blockPos())) {
+                                this.yaw = finalYaw;
+                                this.pitch = i;
+                                this.canRotate = true;
+                            }
+                        }
+                    }
                 }
                 if (this.canRotate && MoveUtil.isForwardPressed() && Math.abs(MathHelper.wrapAngleTo180_float(yawDiffTo180 - this.yaw)) < 90.0F) {
                     switch (this.rotationMode.getValue()) {
@@ -386,6 +536,10 @@ public class Scaffold extends Module {
                             break;
                         case 3:
                             this.yaw = RotationUtil.quantizeAngle(diagonalYaw);
+                            break;
+                        case 4:
+                            this.yaw = RotationUtil.quantizeAngle(yawDiffTo180);
+                            break;
                     }
                 }
                 if (this.rotationMode.getValue() != 0) {
@@ -407,42 +561,44 @@ public class Scaffold extends Module {
                         this.rotationTick = 3;
                         this.towering = true;
                     }
+                    float smoothFactor = (float) this.smoothing.getValue() / 100.0F;
+                    float yawDelta = MathHelper.wrapAngleTo180_float(targetYaw - event.getYaw());
+                    float pitchDelta = MathHelper.wrapAngleTo180_float(targetPitch - event.getPitch());
+                    yawDelta = RotationUtil.smoothAngle(RotationUtil.clampAngle(yawDelta, 180.0F), smoothFactor);
+                    pitchDelta = RotationUtil.smoothAngle(RotationUtil.clampAngle(pitchDelta, 180.0F), smoothFactor);
+                    float gcd = RotationUtil.getSensitivityGCD();
+                    if (gcd > 0.0F) {
+                        yawDelta = Math.round(yawDelta / gcd) * gcd;
+                        pitchDelta = Math.round(pitchDelta / gcd) * gcd;
+                    }
+                    targetYaw = event.getYaw() + yawDelta;
+                    targetPitch = event.getPitch() + pitchDelta;
+                    this.yaw = targetYaw;
+                    this.pitch = targetPitch;
                     event.setRotation(targetYaw, targetPitch, 3);
                     if (this.moveFix.getValue() == 1) {
                         event.setPervRotation(targetYaw, 3);
                     }
+                    this.wasRotating = true;
+                } else {
+                    this.handleSmoothBack(event);
                 }
-                if (blockData != null && hitVec != null && this.rotationTick <= 0) {
-                    this.place(blockData.blockPos(), blockData.facing(), hitVec);
-                    if (this.multiplace.getValue()) {
-                        for (int i = 0; i < 3; i++) {
-                            blockData = this.getBlockData();
-                            if (blockData == null) {
-                                break;
-                            }
-                            MovingObjectPosition mop = RotationUtil.rayTrace(this.yaw, this.pitch, mc.playerController.getBlockReachDistance(), 1.0F);
-                            if (mop != null
-                                    && mop.typeOfHit == MovingObjectType.BLOCK
-                                    && mop.getBlockPos().equals(blockData.blockPos())
-                                    && mop.sideHit == blockData.facing()) {
-                                this.place(blockData.blockPos(), blockData.facing(), mop.hitVec);
-                            } else {
-                                hitVec = BlockUtil.getClickVec(blockData.blockPos(), blockData.facing());
-                                double dx = hitVec.xCoord - mc.thePlayer.posX;
-                                double dy = hitVec.yCoord - mc.thePlayer.posY - (double) mc.thePlayer.getEyeHeight();
-                                double dz = hitVec.zCoord - mc.thePlayer.posZ;
-                                float[] rotations = RotationUtil.getRotationsTo(dx, dy, dz, event.getYaw(), event.getPitch());
-                                if (!(Math.abs(rotations[0] - this.yaw) < 120.0F) || !(Math.abs(rotations[1] - this.pitch) < 60.0F)) {
+                if (blockData != null && this.rotationTick <= 0) {
+                    Vec3 verifiedHit = this.verifyPlacement(blockData.blockPos(), blockData.facing());
+                    if (verifiedHit != null) {
+                        this.place(blockData.blockPos(), blockData.facing(), verifiedHit);
+                        if (this.multiplace.getValue()) {
+                            for (int i = 0; i < 3; i++) {
+                                blockData = this.getBlockData();
+                                if (blockData == null) {
                                     break;
                                 }
-                                mop = RotationUtil.rayTrace(rotations[0], rotations[1], mc.playerController.getBlockReachDistance(), 1.0F);
-                                if (mop == null
-                                        || mop.typeOfHit != MovingObjectType.BLOCK
-                                        || !mop.getBlockPos().equals(blockData.blockPos())
-                                        || mop.sideHit != blockData.facing()) {
+                                Vec3 multiVerifiedHit = this.verifyPlacement(blockData.blockPos(), blockData.facing());
+                                if (multiVerifiedHit != null) {
+                                    this.place(blockData.blockPos(), blockData.facing(), multiVerifiedHit);
+                                } else {
                                     break;
                                 }
-                                this.place(blockData.blockPos(), blockData.facing(), mop.hitVec);
                             }
                         }
                     }
@@ -453,8 +609,10 @@ public class Scaffold extends Module {
                         int playerBlockY = MathHelper.floor_double(mc.thePlayer.posY);
                         int playerBlockZ = MathHelper.floor_double(mc.thePlayer.posZ);
                         BlockPos belowPlayer = new BlockPos(playerBlockX, playerBlockY - 1, playerBlockZ);
-                        hitVec = BlockUtil.getHitVec(belowPlayer, this.targetFacing, this.yaw, this.pitch);
-                        this.place(belowPlayer, this.targetFacing, hitVec);
+                        Vec3 towerVerifiedHit = this.verifyPlacement(belowPlayer, this.targetFacing);
+                        if (towerVerifiedHit != null) {
+                            this.place(belowPlayer, this.targetFacing, towerVerifiedHit);
+                        }
                     }
                     this.targetFacing = null;
                 } else if (this.keepY.getValue() == 2 && this.stage > 0 && !mc.thePlayer.onGround) {
@@ -463,11 +621,15 @@ public class Scaffold extends Module {
                         this.shouldKeepY = true;
                         blockData = this.getBlockData();
                         if (blockData != null && this.rotationTick <= 0) {
-                            hitVec = BlockUtil.getHitVec(blockData.blockPos(), blockData.facing(), this.yaw, this.pitch);
-                            this.place(blockData.blockPos(), blockData.facing(), hitVec);
+                            Vec3 keepYVerifiedHit = this.verifyPlacement(blockData.blockPos(), blockData.facing());
+                            if (keepYVerifiedHit != null) {
+                                this.place(blockData.blockPos(), blockData.facing(), keepYVerifiedHit);
+                            }
                         }
                     }
                 }
+            } else {
+                this.handleSmoothBack(event);
             }
         }
     }
@@ -600,7 +762,6 @@ public class Scaffold extends Module {
                             default:
                                 this.towerTick = 0;
                                 this.towerDelay = 0;
-                                return;
                         }
                     default:
                         this.towerTick = 0;
@@ -624,6 +785,17 @@ public class Scaffold extends Module {
             }
             if (mc.thePlayer.onGround && this.stage > 0 && MoveUtil.isForwardPressed()) {
                 mc.thePlayer.movementInput.jump = true;
+            }
+            if (this.eagle.getValue()) {
+                if (this.isEagleSneaking) {
+                    if (System.currentTimeMillis() - this.eagleSneakStartTime < this.eagleMs.getValue()) {
+                        mc.thePlayer.movementInput.sneak = true;
+                        mc.thePlayer.movementInput.moveStrafe *= 0.3F;
+                        mc.thePlayer.movementInput.moveForward *= 0.3F;
+                    } else {
+                        this.isEagleSneaking = false;
+                    }
+                }
             }
         }
     }
@@ -738,6 +910,13 @@ public class Scaffold extends Module {
         this.towerTick = 0;
         this.towerDelay = 0;
         this.towering = false;
+        this.placedBlocksCount = 0;
+        this.isEagleSneaking = false;
+        this.wasRotating = false;
+        this.isReturning = false;
+        this.returnYaw = 0.0F;
+        this.returnPitch = 0.0F;
+        this.isOnRightSide = false;
     }
 
     @Override
@@ -745,6 +924,8 @@ public class Scaffold extends Module {
         if (mc.thePlayer != null && this.lastSlot != -1) {
             mc.thePlayer.inventory.currentItem = this.lastSlot;
         }
+        this.wasRotating = false;
+        this.isReturning = false;
     }
 
     public static class BlockData {

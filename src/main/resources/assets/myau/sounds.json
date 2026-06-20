@@ -1,0 +1,18 @@
+{
+    "augustus_enable": {
+        "category": "master",
+        "sounds": ["augustus/enable"]
+    },
+    "augustus_disable": {
+        "category": "master",
+        "sounds": ["augustus/disable"]
+    },
+    "fdp_enable": {
+        "category": "master",
+        "sounds": ["fdp/enable"]
+    },
+    "fdp_disable": {
+        "category": "master",
+        "sounds": ["fdp/disable"]
+    }
+}

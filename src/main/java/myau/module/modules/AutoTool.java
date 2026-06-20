@@ -4,6 +4,7 @@ import myau.Myau;
 import myau.event.EventTarget;
 import myau.event.types.EventType;
 import myau.events.TickEvent;
+import myau.events.SwapItemEvent;
 import myau.module.Module;
 import myau.util.ItemUtil;
 import myau.util.KeyBindUtil;
@@ -18,9 +19,11 @@ public class AutoTool extends Module {
     private int currentToolSlot = -1;
     private int previousSlot = -1;
     private int tickDelayCounter = 0;
-    public final IntProperty switchDelay = new IntProperty("delay", 0, 0, 5);
-    public final BooleanProperty switchBack = new BooleanProperty("switch-back", true);
-    public final BooleanProperty sneakOnly = new BooleanProperty("sneak-only", true);
+    private int lastSlot = -1;
+    public final IntProperty switchDelay = new IntProperty("Delay", 0, 0, 5);
+    public final BooleanProperty switchBack = new BooleanProperty("Switch-Back", true);
+    public final BooleanProperty sneakOnly = new BooleanProperty("Sneak-Only", true);
+    public final BooleanProperty itemSpoof = new BooleanProperty("Item-Spoof", false);
 
     public AutoTool() {
         super("AutoTool", false);
@@ -68,10 +71,31 @@ public class AutoTool extends Module {
         }
     }
 
+    @EventTarget
+    public void onSwap(SwapItemEvent event) {
+        if (this.isEnabled() && this.itemSpoof.getValue()) {
+            this.lastSlot = event.setSlot(this.lastSlot);
+            event.setCancelled(true);
+        }
+    }
+
+    @Override
+    public void onEnabled() {
+        if (mc.thePlayer != null) {
+            this.lastSlot = mc.thePlayer.inventory.currentItem;
+        } else {
+            this.lastSlot = -1;
+        }
+    }
+
     @Override
     public void onDisabled() {
         this.currentToolSlot = -1;
         this.previousSlot = -1;
         this.tickDelayCounter = 0;
+        if (mc.thePlayer != null && this.lastSlot != -1) {
+            mc.thePlayer.inventory.currentItem = this.lastSlot;
+        }
+        this.lastSlot = -1;
     }
 }

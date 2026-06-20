@@ -11,9 +11,9 @@ public class ItemPhysics extends Module {
 
     public ItemPhysics() {
         super("ItemPhysics", false);
-        weight = new FloatProperty("weight", 1.0F, 0.1F, 5.0F);
-        rotationSpeed = new FloatProperty("rotation-speed", 1.0F, 0.1F, 3.0F);
-        realisticMode = new BooleanProperty("realistic-mode", false);
+        weight = new FloatProperty("Weight", 1.0F, 0.1F, 5.0F);
+        rotationSpeed = new FloatProperty("Rotation-Speed", 1.0F, 0.1F, 3.0F);
+        realisticMode = new BooleanProperty("Realistic-Mode", false);
     }
 
     public float getWeight() {

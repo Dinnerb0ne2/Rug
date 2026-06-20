@@ -27,14 +27,14 @@ import java.util.stream.Collectors;
 
 public class Indicators extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
-    public final FloatProperty scale = new FloatProperty("scale", 1.0f, 0.5f, 1.5f);
-    public final FloatProperty offset = new FloatProperty("offset", 50.0f, 0.0f, 255.0f);
-    public final BooleanProperty directionCheck = new BooleanProperty("direction-check", true);
-    public final BooleanProperty fireballs = new BooleanProperty("fireballs", true);
-    public final BooleanProperty pearls = new BooleanProperty("pearls", true);
-    public final BooleanProperty arrows = new BooleanProperty("arrows", true);
-    public final BooleanProperty egg = new BooleanProperty("egg", true);
-    public final BooleanProperty snowball = new BooleanProperty("snowball", true);
+    public final FloatProperty scale = new FloatProperty("Scale", 1.0f, 0.5f, 1.5f);
+    public final FloatProperty offset = new FloatProperty("Offset", 50.0f, 0.0f, 255.0f);
+    public final BooleanProperty directionCheck = new BooleanProperty("Direction-Check", true);
+    public final BooleanProperty fireballs = new BooleanProperty("Fireballs", true);
+    public final BooleanProperty pearls = new BooleanProperty("Pearls", true);
+    public final BooleanProperty arrows = new BooleanProperty("Arrows", true);
+    public final BooleanProperty egg = new BooleanProperty("Egg", true);
+    public final BooleanProperty snowball = new BooleanProperty("SnowBall", true);
 
     private boolean shouldRender(Entity entity) {
         double d = (entity.posX - entity.lastTickPosX) * (Indicators.mc.thePlayer.posX - entity.posX) + (entity.posY - entity.lastTickPosY) * (Indicators.mc.thePlayer.posY + (double) Indicators.mc.thePlayer.getEyeHeight() - entity.posY - (double) entity.height / 2.0) + (entity.posZ - entity.lastTickPosZ) * (Indicators.mc.thePlayer.posZ - entity.posZ);

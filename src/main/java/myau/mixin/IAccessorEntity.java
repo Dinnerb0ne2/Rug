@@ -14,6 +14,9 @@ public interface IAccessorEntity {
     @Accessor
     boolean getIsInWeb();
 
+    @Accessor
+    void setIsInWeb(boolean inWeb);
+
     @Invoker
     Vec3 callGetVectorForRotation(float float1, float float2);
 }

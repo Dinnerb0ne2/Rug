@@ -16,9 +16,9 @@ public class IntProperty extends Property<Integer> {
     public IntProperty(
             String name, Integer value, Integer minimum, Integer maximum, BooleanSupplier check
     ) {
-        super(name, value, v -> v >= minimum && v <= maximum, check);
-        this.minimum = minimum;
-        this.maximum = maximum;
+        super(name, value, v -> v >= Math.min(minimum, maximum) && v <= Math.max(minimum, maximum), check);
+        this.minimum = Math.min(minimum, maximum);
+        this.maximum = Math.max(minimum, maximum);
     }
 
     @Override

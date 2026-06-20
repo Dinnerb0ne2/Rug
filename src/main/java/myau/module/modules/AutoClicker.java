@@ -23,16 +23,16 @@ public class AutoClicker extends Module {
     private long clickDelay = 0L;
     private boolean blockHitPending = false;
     private long blockHitDelay = 0L;
-    public final IntProperty minCPS = new IntProperty("min-cps", 8, 1, 20);
-    public final IntProperty maxCPS = new IntProperty("max-cps", 12, 1, 20);
-    public final BooleanProperty blockHit = new BooleanProperty("block-hit", false);
-    public final FloatProperty blockHitTicks = new FloatProperty("block-hit-ticks", 1.5F, 1.0F, 20.0F, this.blockHit::getValue);
-    public final BooleanProperty weaponsOnly = new BooleanProperty("weapons-only", true);
-    public final BooleanProperty allowTools = new BooleanProperty("allow-tools", false, this.weaponsOnly::getValue);
-    public final BooleanProperty breakBlocks = new BooleanProperty("break-blocks", true);
-    public final FloatProperty range = new FloatProperty("range", 3.0F, 3.0F, 8.0F, this.breakBlocks::getValue);
-    public final FloatProperty hitBoxVertical = new FloatProperty("hit-box-vertical", 0.1F, 0.0F, 1.0F, this.breakBlocks::getValue);
-    public final FloatProperty hitBoxHorizontal = new FloatProperty("hit-box-horizontal", 0.2F, 0.0F, 1.0F, this.breakBlocks::getValue);
+    public final IntProperty minCPS = new IntProperty("Min-Cps", 8, 1, 20);
+    public final IntProperty maxCPS = new IntProperty("Max-Cps", 12, 1, 20);
+    public final BooleanProperty blockHit = new BooleanProperty("Block-Hit", false);
+    public final FloatProperty blockHitTicks = new FloatProperty("Block-Hit-Ticks", 1.5F, 1.0F, 20.0F, this.blockHit::getValue);
+    public final BooleanProperty weaponsOnly = new BooleanProperty("Weapons-Only", true);
+    public final BooleanProperty allowTools = new BooleanProperty("Allow-Tools", false, this.weaponsOnly::getValue);
+    public final BooleanProperty breakBlocks = new BooleanProperty("Break-Blocks", true);
+    public final FloatProperty range = new FloatProperty("Range", 3.0F, 3.0F, 8.0F, this.breakBlocks::getValue);
+    public final FloatProperty hitBoxVertical = new FloatProperty("Hit-Box-Vertical", 0.1F, 0.0F, 1.0F, this.breakBlocks::getValue);
+    public final FloatProperty hitBoxHorizontal = new FloatProperty("Hit-Box-Horizontal", 0.2F, 0.0F, 1.0F, this.breakBlocks::getValue);
 
     private long getNextClickDelay() {
         return 1000L / RandomUtil.nextLong(this.minCPS.getValue(), this.maxCPS.getValue());

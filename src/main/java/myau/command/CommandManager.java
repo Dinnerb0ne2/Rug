@@ -23,7 +23,7 @@ public class CommandManager {
         List<String> params = Arrays.asList(string.substring(1).trim().split("\\s+"));
         ArrayList<String> arrayList = new ArrayList<>(params);
         if (params.get(0).isEmpty()) {
-            ChatUtil.sendFormatted(String.format("%sUnknown command&r", Myau.clientName).replace("&", "§"));
+            ChatUtil.sendFormatted(String.format("%sUnknown command&r", Myau.clientName).replace("&", "ยง"));
         } else {
             for (Command command : Myau.commandManager.commands) {
                 for (String name : command.names) {
@@ -33,7 +33,7 @@ public class CommandManager {
                     }
                 }
             }
-            ChatUtil.sendFormatted(String.format("%sUnknown command (&o%s&r)&r", Myau.clientName, params.get(0)).replace("&", "§"));
+            ChatUtil.sendFormatted(String.format("%sUnknown command (&o%s&r)&r", Myau.clientName, params.get(0)).replace("&", "ยง"));
         }
     }
 
@@ -54,5 +54,35 @@ public class CommandManager {
                 this.handleCommand(msg);
             }
         }
+    }
+
+    public List<String> getAutoCompletions(String input) {
+        List<String> completions = new ArrayList<>();
+        if (input == null || input.isEmpty() || input.charAt(0) != '.') {
+            return completions;
+        }
+        String[] parts = input.substring(1).split("\\s+", -1);
+        String currentPart = parts[parts.length - 1];
+        boolean isCommandName = parts.length == 1;
+        if (isCommandName) {
+            for (Command command : commands) {
+                for (String name : command.names) {
+                    if (name.toLowerCase().startsWith(currentPart.toLowerCase())) {
+                        completions.add(name);
+                    }
+                }
+            }
+        } else {
+            String commandName = parts[0];
+            for (Command command : commands) {
+                for (String name : command.names) {
+                    if (name.equalsIgnoreCase(commandName)) {
+                        int argIndex = parts.length - 2;
+                        completions.addAll(command.getCompletions(argIndex, currentPart));
+                    }
+                }
+            }
+        }
+        return completions;
     }
 }

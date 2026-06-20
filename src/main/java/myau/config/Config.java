@@ -25,7 +25,7 @@ public class Config {
         if (name.equals("!") || name.equals("default")) {
             this.name = "default";
         }
-        this.file = new File("./config/Myau/", String.format("%s.json", this.name));
+        this.file = new File("./Myau/", String.format("%s.json", this.name));
         try {
             file.getParentFile().mkdirs();
             if (newConfig) {

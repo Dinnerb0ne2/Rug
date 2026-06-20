@@ -4,6 +4,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import myau.Myau;
+import myau.ui.animation.Animation;
+import myau.ui.animation.Easing;
 import myau.module.Module;
 import myau.module.modules.*;
 import myau.property.Property;
@@ -41,6 +43,10 @@ public class ClickGui extends GuiScreen {
     private static final Color COLOR_DISABLED = new Color(180, 0, 0);
     private static final Color COLOR_INDICATOR_WHITE = Color.WHITE;
     private static final Color COLOR_INDICATOR_BLACK = Color.BLACK;
+    private static final Color COLOR_WIN11_CLOSE_HOVER = new Color(196, 43, 28);
+    private static final Color COLOR_WIN11_BTN_HOVER = new Color(255, 255, 255, 15);
+    private static final Color COLOR_WIN11_ICON_NORMAL = new Color(204, 204, 204);
+    private static final Color COLOR_WIN11_ICON_HOVER = new Color(255, 255, 255);
 
     private static final float WIDTH = 500.0f;
     private static final float HEIGHT = 300.0f;
@@ -58,11 +64,12 @@ public class ClickGui extends GuiScreen {
     private static final float COLOR_PREVIEW_SIZE = 20.0f;
     private static final float SCROLL_SPEED = 0.1f;
     private static final float ANIMATION_SPEED_GUI = 8.0f;
-    private static final float ANIMATION_SPEED_CATEGORY = 12.0f;
     private static final float MAX_DELTA_TIME = 0.1f;
+    private static final float WIN11_BUTTON_WIDTH = 35.0f;
 
     public static float lastPosX = -1337.0f;
     public static float lastPosY = -1337.0f;
+    public static boolean lastMaximized = false;
 
     private static String lastCategory = null;
     private static String lastModule = null;
@@ -73,31 +80,47 @@ public class ClickGui extends GuiScreen {
     private boolean waitingForKey = false;
     private boolean draggingSlider = false;
     private boolean isGuiOpen = true;
+    private boolean isMaximized = false;
+    private float savedPosX, savedPosY, savedWidth, savedHeight;
 
     private float guiOpenAnimation = 0.0f;
-    private float targetCategoryLineX = 0.0f;
-    private float currentCategoryLineX = 0.0f;
     private long lastAnimationTime = System.currentTimeMillis();
     private float draggingX;
     private float draggingY;
     private float posX = 150.0f;
     private float posY = 80.0f;
+    private float currentWidth = WIDTH;
+    private float currentHeight = HEIGHT;
     private float valueScroll = 0.0f;
     private float moduleScroll = 0.0f;
 
     private Module selectedModule;
-    private Module.Category selectedCategory = null;
+    private Category selectedCategory = null;
     private Property<?> currentDraggingSlider = null;
 
     private final HashMap<TextProperty, GuiTextField> textFieldMap = new HashMap<>();
     private final Map<ColorProperty, ColorPickerState> colorPickerStates = new HashMap<>();
     private final HashMap<Property<?>, Float> numberSettingMap = new HashMap<>();
 
-    private final File configFile = new File("./config/Myau/", "clickgui.txt");
+    private final File configFile = new File("./Myau/", "clickgui.txt");
     private static ClickGui instance;
 
-    private final Map<Module.Category, List<Module>> categoryModules = new LinkedHashMap<>();
-    private final Set<Module> hiddenModules = new HashSet<>();
+    private final Animation categoryLineAnimation = new Animation(Easing.EaseOutQuint, 300L);
+    private float lastCategoryLineTargetX = -1337.0f;
+
+    public enum Category {
+        COMBAT("Combat"),
+        MOVEMENT("Movement"),
+        RENDER("Render"),
+        PLAYER("Player"),
+        MISC("Misc");
+
+        private final String displayName;
+        Category(String displayName) { this.displayName = displayName; }
+        public String getDisplayName() { return displayName; }
+    }
+
+    private final Map<Category, List<Module>> categoryModules = new LinkedHashMap<>();
 
     private static class ColorPickerState {
         float pickerX, pickerY, hueSliderY, alphaSliderY;
@@ -113,12 +136,13 @@ public class ClickGui extends GuiScreen {
         instance = this;
         initCategories();
 
+        loadPositions();
+
         if (lastPosX != -1337.0f && lastPosY != -1337.0f) {
             this.posX = lastPosX;
             this.posY = lastPosY;
         }
         restoreLastState();
-        loadPositions();
     }
 
     public static ClickGui getInstance() {
@@ -126,21 +150,96 @@ public class ClickGui extends GuiScreen {
     }
 
     private void initCategories() {
-        List<Module> combatModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.COMBAT)
-        );
-        List<Module> movementModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.MOVEMENT)
-        );
-        List<Module> renderModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.RENDER)
-        );
-        List<Module> playerModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.PLAYER)
-        );
-        List<Module> miscModules = new ArrayList<>(
-            Myau.moduleManager.getModulesByCategory(Module.Category.MISC)
-        );
+        List<Module> combatModules = new ArrayList<>();
+        combatModules.add(Myau.moduleManager.getModule(AimAssist.class));
+        combatModules.add(Myau.moduleManager.getModule(TickBase.class));
+        combatModules.add(Myau.moduleManager.getModule(AutoClicker.class));
+        combatModules.add(Myau.moduleManager.getModule(KillAura.class));
+        combatModules.add(Myau.moduleManager.getModule(Wtap.class));
+        combatModules.add(Myau.moduleManager.getModule(BackTrack.class));
+        combatModules.add(Myau.moduleManager.getModule(TimerRange.class));
+        combatModules.add(Myau.moduleManager.getModule(Velocity.class));
+        combatModules.add(Myau.moduleManager.getModule(Freeze.class));
+        combatModules.add(Myau.moduleManager.getModule(Reach.class));
+        combatModules.add(Myau.moduleManager.getModule(TargetStrafe.class));
+        combatModules.add(Myau.moduleManager.getModule(AntiFireball.class));
+        combatModules.add(Myau.moduleManager.getModule(LagRange.class));
+        combatModules.add(Myau.moduleManager.getModule(HitBox.class));
+        combatModules.add(Myau.moduleManager.getModule(MoreKB.class));
+        combatModules.add(Myau.moduleManager.getModule(Refill.class));
+        combatModules.add(Myau.moduleManager.getModule(HitSelect.class));
+
+        List<Module> movementModules = new ArrayList<>();
+        movementModules.add(Myau.moduleManager.getModule(Fly.class));
+        movementModules.add(Myau.moduleManager.getModule(Speed.class));
+        movementModules.add(Myau.moduleManager.getModule(LongJump.class));
+        movementModules.add(Myau.moduleManager.getModule(Sprint.class));
+        movementModules.add(Myau.moduleManager.getModule(SafeWalk.class));
+        movementModules.add(Myau.moduleManager.getModule(Jesus.class));
+        movementModules.add(Myau.moduleManager.getModule(Blink.class));
+        movementModules.add(Myau.moduleManager.getModule(NoFall.class));
+        movementModules.add(Myau.moduleManager.getModule(NoSlow.class));
+        movementModules.add(Myau.moduleManager.getModule(KeepSprint.class));
+        movementModules.add(Myau.moduleManager.getModule(Eagle.class));
+        movementModules.add(Myau.moduleManager.getModule(NoJumpDelay.class));
+        movementModules.add(Myau.moduleManager.getModule(AntiVoid.class));
+
+        List<Module> renderModules = new ArrayList<>();
+        renderModules.add(Myau.moduleManager.getModule(CustomCape.class));
+        renderModules.add(Myau.moduleManager.getModule(ESP.class));
+        renderModules.add(Myau.moduleManager.getModule(ClientSetting.class));
+        renderModules.add(Myau.moduleManager.getModule(BAHalo.class));
+        renderModules.add(Myau.moduleManager.getModule(Particles.class));
+        renderModules.add(Myau.moduleManager.getModule(Chat.class));
+        renderModules.add(Myau.moduleManager.getModule(Chams.class));
+        renderModules.add(Myau.moduleManager.getModule(FullBright.class));
+        renderModules.add(Myau.moduleManager.getModule(Tracers.class));
+        renderModules.add(Myau.moduleManager.getModule(NameTags.class));
+        renderModules.add(Myau.moduleManager.getModule(Xray.class));
+        renderModules.add(Myau.moduleManager.getModule(ItemPhysics.class));
+        renderModules.add(Myau.moduleManager.getModule(TargetHUD.class));
+        renderModules.add(Myau.moduleManager.getModule(Indicators.class));
+        renderModules.add(Myau.moduleManager.getModule(BedESP.class));
+        renderModules.add(Myau.moduleManager.getModule(ItemESP.class));
+        renderModules.add(Myau.moduleManager.getModule(ViewClip.class));
+        renderModules.add(Myau.moduleManager.getModule(NoHurtCam.class));
+        renderModules.add(Myau.moduleManager.getModule(HUD.class));
+        renderModules.add(Myau.moduleManager.getModule(GuiModule.class));
+        renderModules.add(Myau.moduleManager.getModule(ChestESP.class));
+        renderModules.add(Myau.moduleManager.getModule(Trajectories.class));
+        renderModules.add(Myau.moduleManager.getModule(Radar.class));
+
+        List<Module> playerModules = new ArrayList<>();
+        playerModules.add(Myau.moduleManager.getModule(AutoHeal.class));
+        playerModules.add(Myau.moduleManager.getModule(AutoTool.class));
+        playerModules.add(Myau.moduleManager.getModule(NoClickDelay.class));
+        playerModules.add(Myau.moduleManager.getModule(ChestStealer.class));
+        playerModules.add(Myau.moduleManager.getModule(InvManager.class));
+        playerModules.add(Myau.moduleManager.getModule(InvWalk.class));
+        playerModules.add(Myau.moduleManager.getModule(Scaffold.class));
+        playerModules.add(Myau.moduleManager.getModule(AutoBlockIn.class));
+        playerModules.add(Myau.moduleManager.getModule(SpeedMine.class));
+        playerModules.add(Myau.moduleManager.getModule(FastPlace.class));
+        playerModules.add(Myau.moduleManager.getModule(GhostHand.class));
+        playerModules.add(Myau.moduleManager.getModule(MCF.class));
+        playerModules.add(Myau.moduleManager.getModule(AntiDebuff.class));
+
+        List<Module> miscModules = new ArrayList<>();
+        miscModules.add(Myau.moduleManager.getModule(Spammer.class));
+        miscModules.add(Myau.moduleManager.getModule(FlagDetector.class));
+        miscModules.add(Myau.moduleManager.getModule(BedNuker.class));
+        miscModules.add(Myau.moduleManager.getModule(BedTracker.class));
+        miscModules.add(Myau.moduleManager.getModule(LightningTracker.class));
+        miscModules.add(Myau.moduleManager.getModule(NoRotate.class));
+        miscModules.add(Myau.moduleManager.getModule(NickHider.class));
+        miscModules.add(Myau.moduleManager.getModule(InventoryClicker.class));
+        miscModules.add(Myau.moduleManager.getModule(ExploitFixer.class));
+
+        combatModules.removeIf(m -> m == null);
+        movementModules.removeIf(m -> m == null);
+        renderModules.removeIf(m -> m == null);
+        playerModules.removeIf(m -> m == null);
+        miscModules.removeIf(m -> m == null);
 
         Comparator<Module> comparator = Comparator.comparing(m -> m.getName().toLowerCase());
         combatModules.sort(comparator);
@@ -162,16 +261,16 @@ public class ClickGui extends GuiScreen {
             }
         }
 
-        categoryModules.put(Module.Category.COMBAT, combatModules);
-        categoryModules.put(Module.Category.MOVEMENT, movementModules);
-        categoryModules.put(Module.Category.RENDER, renderModules);
-        categoryModules.put(Module.Category.PLAYER, playerModules);
-        categoryModules.put(Module.Category.MISC, miscModules);
+        categoryModules.put(Category.COMBAT, combatModules);
+        categoryModules.put(Category.MOVEMENT, movementModules);
+        categoryModules.put(Category.RENDER, renderModules);
+        categoryModules.put(Category.PLAYER, playerModules);
+        categoryModules.put(Category.MISC, miscModules);
     }
 
     private void restoreLastState() {
         if (lastCategory != null) {
-            for (Module.Category cat : Module.Category.values()) {
+            for (Category cat : Category.values()) {
                 if (cat.name().equals(lastCategory)) {
                     selectedCategory = cat;
                     break;
@@ -222,10 +321,7 @@ public class ClickGui extends GuiScreen {
         guiOpenAnimation = Math.max(0.0f, Math.min(1.0f,
                 (float) animate(targetGuiAnimation, guiOpenAnimation, deltaTime * ANIMATION_SPEED_GUI)));
 
-        if (Math.abs(targetCategoryLineX - currentCategoryLineX) > 0.1f) {
-            currentCategoryLineX = (float) animate(
-                    targetCategoryLineX, currentCategoryLineX, deltaTime * ANIMATION_SPEED_CATEGORY);
-        }
+        categoryLineAnimation.update();
     }
 
     private Color getGlobalColor() {
@@ -282,12 +378,14 @@ public class ClickGui extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
-        lastPosX = this.posX;
-        lastPosY = this.posY;
+        lastMaximized = isMaximized;
+        lastPosX = isMaximized ? savedPosX : this.posX;
+        lastPosY = isMaximized ? savedPosY : this.posY;
+
         saveCurrentState();
         savePositions();
         super.onGuiClosed();
-        
+
         GuiModule guiModule = (GuiModule) Myau.moduleManager.modules.get(GuiModule.class);
         if (guiModule != null && guiModule.isEnabled()) {
             guiModule.setEnabled(false);
@@ -297,6 +395,9 @@ public class ClickGui extends GuiScreen {
     @Override
     public void initGui() {
         super.initGui();
+        if (lastMaximized && !isMaximized) {
+            toggleMaximize();
+        }
     }
 
     public void handle(int mouseX, int mouseY, int mouseButton, GuiEvent event) {
@@ -315,11 +416,15 @@ public class ClickGui extends GuiScreen {
             return;
         }
 
+        if (event == GuiEvent.CLICK && handleWin11Buttons(mouseX, mouseY, mouseButton)) {
+            return;
+        }
+
         handleDragging(mouseX, mouseY, mouseButton, event);
 
         if (event == GuiEvent.DRAW) {
             renderMainBackground();
-            renderHeader();
+            renderHeader(mouseX, mouseY);
         }
 
         renderCategories(mouseX, mouseY, mouseButton, event);
@@ -331,9 +436,53 @@ public class ClickGui extends GuiScreen {
         }
     }
 
+    private boolean handleWin11Buttons(int mouseX, int mouseY, int mouseButton) {
+        if (mouseButton != 0) return false;
+
+        float closeX = posX + currentWidth - WIN11_BUTTON_WIDTH;
+        float maxX = posX + currentWidth - WIN11_BUTTON_WIDTH * 2;
+        float minX = posX + currentWidth - WIN11_BUTTON_WIDTH * 3;
+
+        if (isHovered(mouseX, mouseY, closeX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT)) {
+            mc.displayGuiScreen(null);
+            return true;
+        }
+        if (isHovered(mouseX, mouseY, maxX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT)) {
+            toggleMaximize();
+            return true;
+        }
+        if (isHovered(mouseX, mouseY, minX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT)) {
+            mc.displayGuiScreen(null);
+            return true;
+        }
+        return false;
+    }
+
+    private void toggleMaximize() {
+        if (isMaximized) {
+            posX = savedPosX;
+            posY = savedPosY;
+            currentWidth = savedWidth;
+            currentHeight = savedHeight;
+            isMaximized = false;
+        } else {
+            savedPosX = posX;
+            savedPosY = posY;
+            savedWidth = currentWidth;
+            savedHeight = currentHeight;
+            posX = 0;
+            posY = 0;
+            currentWidth = this.width;
+            currentHeight = this.height;
+            isMaximized = true;
+        }
+    }
+
     private void handleDragging(int mouseX, int mouseY, int mouseButton, GuiEvent event) {
         if (event == GuiEvent.CLICK) {
-            if (isHovered(mouseX, mouseY, posX, posY, WIDTH, HEADER_HEIGHT) && mouseButton == 0) {
+            float buttonsStartX = posX + currentWidth - WIN11_BUTTON_WIDTH * 3;
+            if (isHovered(mouseX, mouseY, posX, posY, currentWidth, HEADER_HEIGHT) && mouseButton == 0
+                    && mouseX < buttonsStartX) {
                 dragging = true;
                 draggingX = mouseX - posX;
                 draggingY = mouseY - posY;
@@ -351,21 +500,113 @@ public class ClickGui extends GuiScreen {
     }
 
     private void renderMainBackground() {
-        drawRect(posX, posY, WIDTH, HEIGHT, COLOR_BACKGROUND.getRGB());
+        drawRect(posX, posY, currentWidth, currentHeight, COLOR_BACKGROUND.getRGB());
     }
 
-    private void renderHeader() {
-        drawRect(posX, posY, WIDTH, HEADER_HEIGHT, COLOR_HEADER.getRGB());
+    private void renderHeader(int mouseX, int mouseY) {
+        drawRect(posX, posY, currentWidth, HEADER_HEIGHT, COLOR_HEADER.getRGB());
         mc.fontRendererObj.drawStringWithShadow("CLICKGUI", posX + 5.0f, posY + 6.0f, COLOR_TEXT_PRIMARY.getRGB());
 
-        drawRect(posX + CATEGORY_OFFSET_X, posY + 0.5f, 2.0f, HEIGHT, COLOR_SEPARATOR.getRGB());
-        drawRect(posX + CATEGORY_OFFSET_X, posY + 40.0f, WIDTH - CATEGORY_OFFSET_X + 0.5f, 2.0f, COLOR_SEPARATOR.getRGB());
+        drawRect(posX + CATEGORY_OFFSET_X, posY + 0.5f, 2.0f, currentHeight, COLOR_SEPARATOR.getRGB());
+        drawRect(posX + CATEGORY_OFFSET_X, posY + 40.0f, currentWidth - CATEGORY_OFFSET_X + 0.5f, 2.0f, COLOR_SEPARATOR.getRGB());
+
+        renderWin11Buttons(mouseX, mouseY);
+    }
+
+    private void renderWin11Buttons(int mouseX, int mouseY) {
+        float closeX = posX + currentWidth - WIN11_BUTTON_WIDTH;
+        float maxX = posX + currentWidth - WIN11_BUTTON_WIDTH * 2;
+        float minX = posX + currentWidth - WIN11_BUTTON_WIDTH * 3;
+
+        boolean closeHover = isHovered(mouseX, mouseY, closeX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT);
+        boolean maxHover = isHovered(mouseX, mouseY, maxX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT);
+        boolean minHover = isHovered(mouseX, mouseY, minX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT);
+
+        if (minHover) {
+            drawRect(minX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT, COLOR_WIN11_BTN_HOVER.getRGB());
+        }
+        if (maxHover) {
+            drawRect(maxX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT, COLOR_WIN11_BTN_HOVER.getRGB());
+        }
+        if (closeHover) {
+            drawRect(closeX, posY, WIN11_BUTTON_WIDTH, HEADER_HEIGHT, COLOR_WIN11_CLOSE_HOVER.getRGB());
+        }
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glHint(GL11.GL_LINE_SMOOTH_HINT, GL11.GL_NICEST);
+        GL11.glLineWidth(1.2f);
+
+        float minCenterX = minX + WIN11_BUTTON_WIDTH / 2.0f;
+        float maxCenterX = maxX + WIN11_BUTTON_WIDTH / 2.0f;
+        float closeCenterX = closeX + WIN11_BUTTON_WIDTH / 2.0f;
+        float centerY = posY + HEADER_HEIGHT / 2.0f;
+
+        float minIconColorR = minHover ? 1.0f : 0.8f;
+        float minIconColorG = minHover ? 1.0f : 0.8f;
+        float minIconColorB = minHover ? 1.0f : 0.8f;
+        GL11.glColor4f(minIconColorR, minIconColorG, minIconColorB, 1.0f);
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(minCenterX - 5.0f, posY + HEADER_HEIGHT - 5.0f);
+        GL11.glVertex2f(minCenterX + 5.0f, posY + HEADER_HEIGHT - 5.0f);
+        GL11.glEnd();
+
+        float maxIconColorR = maxHover ? 1.0f : 0.8f;
+        float maxIconColorG = maxHover ? 1.0f : 0.8f;
+        float maxIconColorB = maxHover ? 1.0f : 0.8f;
+        GL11.glColor4f(maxIconColorR, maxIconColorG, maxIconColorB, 1.0f);
+        if (!isMaximized) {
+            float s = 4.5f;
+            GL11.glBegin(GL11.GL_LINE_LOOP);
+            GL11.glVertex2f(maxCenterX - s, centerY - s);
+            GL11.glVertex2f(maxCenterX + s, centerY - s);
+            GL11.glVertex2f(maxCenterX + s, centerY + s);
+            GL11.glVertex2f(maxCenterX - s, centerY + s);
+            GL11.glEnd();
+        } else {
+            float s = 3.5f;
+            float d = 2.5f;
+            GL11.glBegin(GL11.GL_LINE_LOOP);
+            GL11.glVertex2f(maxCenterX - s + d, centerY - s - d + d);
+            GL11.glVertex2f(maxCenterX + s + d, centerY - s - d + d);
+            GL11.glVertex2f(maxCenterX + s + d, centerY + s - d + d);
+            GL11.glVertex2f(maxCenterX - s + d, centerY + s - d + d);
+            GL11.glEnd();
+            GL11.glBegin(GL11.GL_LINE_LOOP);
+            GL11.glVertex2f(maxCenterX - s - d + d, centerY - s + d - d + d);
+            GL11.glVertex2f(maxCenterX + s - d + d, centerY - s + d - d + d);
+            GL11.glVertex2f(maxCenterX + s - d + d, centerY + s + d - d + d);
+            GL11.glVertex2f(maxCenterX - s - d + d, centerY + s + d - d + d);
+            GL11.glEnd();
+        }
+
+        float closeIconColorR = closeHover ? 1.0f : 0.8f;
+        float closeIconColorG = closeHover ? 1.0f : 0.8f;
+        float closeIconColorB = closeHover ? 1.0f : 0.8f;
+        GL11.glColor4f(closeIconColorR, closeIconColorG, closeIconColorB, 1.0f);
+        float cs = 4.0f;
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(closeCenterX - cs, centerY - cs);
+        GL11.glVertex2f(closeCenterX + cs, centerY + cs);
+        GL11.glEnd();
+        GL11.glBegin(GL11.GL_LINES);
+        GL11.glVertex2f(closeCenterX + cs, centerY - cs);
+        GL11.glVertex2f(closeCenterX - cs, centerY + cs);
+        GL11.glEnd();
+
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
     private void renderCategories(int mouseX, int mouseY, int mouseButton, GuiEvent event) {
         float categoryX = posX + CATEGORY_OFFSET_X + 15.0f;
+        float targetLineX = -1337.0f;
 
-        for (Module.Category category : Module.Category.values()) {
+        for (Category category : Category.values()) {
             float categoryWidth = mc.fontRendererObj.getStringWidth(category.getDisplayName());
             float categoryHeight = mc.fontRendererObj.FONT_HEIGHT;
 
@@ -385,10 +626,7 @@ public class ClickGui extends GuiScreen {
                 mc.fontRendererObj.drawStringWithShadow(category.getDisplayName(), categoryX, posY + 25.0f, textColor);
 
                 if (isSelected) {
-                    targetCategoryLineX = categoryX;
-                    if (currentCategoryLineX == 0.0f) {
-                        currentCategoryLineX = targetCategoryLineX;
-                    }
+                    targetLineX = categoryX;
                 }
             } else if (event == GuiEvent.CLICK) {
                 if (isHovered(mouseX, mouseY, categoryX, posY + 20.0f, categoryWidth, categoryHeight)) {
@@ -401,8 +639,6 @@ public class ClickGui extends GuiScreen {
                     moduleScroll = 0.0f;
                     valueScroll = 0.0f;
                     colorPickerStates.clear();
-                    targetCategoryLineX = categoryX;
-                    currentCategoryLineX = categoryX;
                     saveCurrentState();
                 }
             }
@@ -410,18 +646,28 @@ public class ClickGui extends GuiScreen {
         }
 
         if (event == GuiEvent.DRAW && selectedCategory != null) {
-            float lineWidth = mc.fontRendererObj.getStringWidth(selectedCategory.getDisplayName()) - 0.5f;
-            float lineY = posY + 25.0f + mc.fontRendererObj.FONT_HEIGHT + 2.0f;
-            drawRect(currentCategoryLineX, lineY, lineWidth, 2.0f, getGlobalColor().getRGB());
+            if (targetLineX != -1337.0f) {
+                if (lastCategoryLineTargetX == -1337.0f) {
+                    categoryLineAnimation.start(targetLineX, targetLineX);
+                } else if (lastCategoryLineTargetX != targetLineX) {
+                    categoryLineAnimation.start(categoryLineAnimation.getValue(), targetLineX);
+                }
+                lastCategoryLineTargetX = targetLineX;
+
+                float currentLineX = (float) categoryLineAnimation.getValue();
+                float lineWidth = mc.fontRendererObj.getStringWidth(selectedCategory.getDisplayName()) - 0.5f;
+                float lineY = posY + 25.0f + mc.fontRendererObj.FONT_HEIGHT + 2.0f;
+                drawRect(currentLineX, lineY, lineWidth, 2.0f, getGlobalColor().getRGB());
+            }
         }
     }
 
     private void renderModuleList(int mouseX, int mouseY, int mouseButton, GuiEvent event) {
         if (event == GuiEvent.DRAW) {
-            scissorStart(posX, posY + 16.5f, MODULE_LIST_WIDTH, HEIGHT - 16.5f);
+            scissorStart(posX, posY + 16.5f, MODULE_LIST_WIDTH, currentHeight - 16.5f);
         }
 
-        if (isHovered(mouseX, mouseY, posX, posY + 16.5f, MODULE_LIST_WIDTH, HEIGHT - 16.5f)
+        if (isHovered(mouseX, mouseY, posX, posY + 16.5f, MODULE_LIST_WIDTH, currentHeight - 16.5f)
                 && event == GuiEvent.DRAW) {
             moduleScroll = Math.min(0.0f, moduleScroll + Mouse.getDWheel() * SCROLL_SPEED);
         }
@@ -431,7 +677,6 @@ public class ClickGui extends GuiScreen {
         List<Module> modules = getCurrentModuleList();
 
         for (Module module : modules) {
-            if (hiddenModules.contains(module)) continue;
             float moduleHeight = mc.fontRendererObj.FONT_HEIGHT;
 
             if (event == GuiEvent.DRAW) {
@@ -487,8 +732,8 @@ public class ClickGui extends GuiScreen {
                 + mc.fontRendererObj.FONT_HEIGHT + 10.0f;
 
         if (isHovered(mouseX, mouseY, posX + CATEGORY_OFFSET_X + 1.5f,
-                initialValueY + 1.5f + 1.0f, WIDTH - (CATEGORY_OFFSET_X + 1.5f),
-                HEIGHT - (40.0f + 1.5f)) && event == GuiEvent.DRAW) {
+                initialValueY + 1.5f + 1.0f, currentWidth - (CATEGORY_OFFSET_X + 1.5f),
+                currentHeight - (40.0f + 1.5f)) && event == GuiEvent.DRAW) {
             float scrollDelta = Mouse.getDWheel() * SCROLL_SPEED;
             if (scrollDelta != 0) {
                 valueScroll = Math.min(0.0f, valueScroll + scrollDelta);
@@ -499,8 +744,8 @@ public class ClickGui extends GuiScreen {
         if (event == GuiEvent.DRAW) {
             scissorStart(posX + CATEGORY_OFFSET_X + 1.5f + 0.5f,
                     posY + 30.0f + headerHeight + 1.5f + 1.0f,
-                    WIDTH - (CATEGORY_OFFSET_X + 1.5f),
-                    HEIGHT - (31.0f + headerHeight + 1.5f));
+                    currentWidth - (CATEGORY_OFFSET_X + 1.5f),
+                    currentHeight - (31.0f + headerHeight + 1.5f));
         }
 
         currentY = initialValueY - 4.0f + headerHeight + valueScroll;
@@ -524,7 +769,8 @@ public class ClickGui extends GuiScreen {
                                           GuiEvent event, float currentY) {
         String keyName = selectedModule.getKey() == 0 ? "None" : Keyboard.getKeyName(selectedModule.getKey());
         float keyWidth = mc.fontRendererObj.getStringWidth("Key: " + keyName);
-        float hideWidth = mc.fontRendererObj.getStringWidth("Hide: " + hiddenModules.contains(selectedModule));
+        boolean isModuleHidden = selectedModule.isHidden();
+        float hideWidth = mc.fontRendererObj.getStringWidth("Hide: " + isModuleHidden);
 
         boolean isKeyHovered = isHovered(mouseX, mouseY,
                 posX + VALUE_AREA_OFFSET_X, currentY + 1.0f, keyWidth, mc.fontRendererObj.FONT_HEIGHT);
@@ -533,7 +779,7 @@ public class ClickGui extends GuiScreen {
 
         if (event == GuiEvent.DRAW) {
             int hideTextColor = new Color(150, 150, 150).getRGB();
-            int stateColor = hiddenModules.contains(selectedModule) ? COLOR_ENABLED.getRGB() : COLOR_DISABLED.getRGB();
+            int stateColor = isModuleHidden ? COLOR_ENABLED.getRGB() : COLOR_DISABLED.getRGB();
 
             if (waitingForKey) {
                 mc.fontRendererObj.drawStringWithShadow("Key: ...",
@@ -545,16 +791,12 @@ public class ClickGui extends GuiScreen {
 
             mc.fontRendererObj.drawStringWithShadow("Hide: ",
                     posX + 170.0f, currentY + 1.0f, hideTextColor);
-            mc.fontRendererObj.drawStringWithShadow(String.valueOf(hiddenModules.contains(selectedModule)),
+            mc.fontRendererObj.drawStringWithShadow(String.valueOf(isModuleHidden),
                     posX + 170.0f + mc.fontRendererObj.getStringWidth("Hide: "),
                     currentY + 1.0f, stateColor);
         } else if (event == GuiEvent.CLICK) {
             if (isHideHovered && mouseButton == 0) {
-                if (hiddenModules.contains(selectedModule)) {
-                    hiddenModules.remove(selectedModule);
-                } else {
-                    hiddenModules.add(selectedModule);
-                }
+                selectedModule.setHidden(!isModuleHidden);
             }
             if (isKeyHovered && mouseButton == 0) {
                 waitingForKey = !waitingForKey;
@@ -671,8 +913,9 @@ public class ClickGui extends GuiScreen {
             mc.fontRendererObj.drawStringWithShadow(nameText,
                     posX + VALUE_AREA_OFFSET_X, currentY, COLOR_TEXT_PRIMARY.getRGB());
 
-            double targetLength = Math.max(0.0, Math.min(SLIDER_WIDTH,
-                    (currentVal - min) / (max - min) * SLIDER_WIDTH));
+            double range = max - min;
+            double targetLength = range == 0 ? 0 : Math.max(0.0, Math.min(SLIDER_WIDTH,
+                    (currentVal - min) / range * SLIDER_WIDTH));
             double currentLength = numberSettingMap.getOrDefault(numValue, (float) targetLength);
 
             if (draggingSlider && currentDraggingSlider == numValue) {
@@ -714,27 +957,49 @@ public class ClickGui extends GuiScreen {
 
     private float renderModeValue(int mouseX, int mouseY, int mouseButton,
                                   GuiEvent event, float currentY, ModeProperty modeValue) {
-        float modeX = posX + VALUE_AREA_OFFSET_X
-                + mc.fontRendererObj.getStringWidth(modeValue.getName() + ": ");
+        float startX = posX + VALUE_AREA_OFFSET_X;
         float tempY = currentY;
+        float currentX = startX;
 
-        String currentMode = modeValue.getModeString().replace("_", " ");
+        String nameText = modeValue.getName() + ": ";
+        float nameWidth = mc.fontRendererObj.getStringWidth(nameText);
 
         if (event == GuiEvent.DRAW) {
-            mc.fontRendererObj.drawStringWithShadow(modeValue.getName() + ": ",
-                    posX + VALUE_AREA_OFFSET_X, currentY, COLOR_TEXT_PRIMARY.getRGB());
-            mc.fontRendererObj.drawStringWithShadow(currentMode, modeX, tempY, getGlobalColor().getRGB());
-        } else if (event == GuiEvent.CLICK) {
-            float modeWidth = mc.fontRendererObj.getStringWidth(currentMode);
-            if (isHovered(mouseX, mouseY, modeX, tempY,
-                    modeWidth, mc.fontRendererObj.FONT_HEIGHT)) {
-                if (mouseButton == 0) {
-                    modeValue.nextMode();
-                } else if (mouseButton == 1) {
-                    modeValue.previousMode();
+            mc.fontRendererObj.drawStringWithShadow(nameText, currentX, tempY, COLOR_TEXT_PRIMARY.getRGB());
+        }
+
+        currentX += nameWidth;
+
+        float rightBoundary = posX + currentWidth - 10.0f;
+        float spacing = 10.0f;
+
+        String[] modes = modeValue.getModes();
+        int currentIndex = modeValue.getValue();
+
+        for (int i = 0; i < modes.length; i++) {
+            String mode = modes[i].replace("_", " ");
+            float modeWidth = mc.fontRendererObj.getStringWidth(mode);
+
+            if (currentX + modeWidth > rightBoundary && currentX > startX) {
+                currentX = startX;
+                tempY += mc.fontRendererObj.FONT_HEIGHT + 4.0f;
+            }
+
+            boolean isSelected = i == currentIndex;
+            boolean isHovered = isHovered(mouseX, mouseY, currentX - 2.0f, tempY, modeWidth + 4.0f, mc.fontRendererObj.FONT_HEIGHT);
+
+            if (event == GuiEvent.DRAW) {
+                int color = isSelected ? getGlobalColor().getRGB() : (isHovered ? COLOR_TEXT_HOVER.getRGB() : COLOR_TEXT_SECONDARY.getRGB());
+                mc.fontRendererObj.drawStringWithShadow(mode, currentX, tempY, color);
+            } else if (event == GuiEvent.CLICK) {
+                if (isHovered && mouseButton == 0) {
+                    modeValue.setValue(i);
                 }
             }
+
+            currentX += modeWidth + spacing;
         }
+
         return tempY + mc.fontRendererObj.FONT_HEIGHT + 4.0f;
     }
 
@@ -853,42 +1118,46 @@ public class ClickGui extends GuiScreen {
         float previewY = state.pickerY;
 
         drawRect(previewX, previewY, COLOR_PREVIEW_SIZE, COLOR_PREVIEW_SIZE, COLOR_INDICATOR_WHITE.getRGB());
-        drawRect(previewX + 1, previewY + 1, COLOR_PREVIEW_SIZE - 2, COLOR_PREVIEW_SIZE - 2, COLOR_INDICATOR_BLACK.getRGB());
-        int rgb = Color.HSBtoRGB(state.hue, state.saturation, state.brightness);
-        Color c = new Color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, (int)(state.alpha * 255));
-        drawRect(previewX + 1, previewY + 1, COLOR_PREVIEW_SIZE - 2, COLOR_PREVIEW_SIZE - 2, c.getRGB());
+        drawRect(previewX + 1, previewY + 1, COLOR_PREVIEW_SIZE - 2, COLOR_PREVIEW_SIZE - 2, colorValue.getValue());
     }
 
     private void renderColorIndicators(ColorPickerState state, ColorProperty colorValue) {
-        float colorPosX = state.pickerX + (state.saturation * COLOR_PICKER_WIDTH);
-        float colorPosY = state.pickerY + ((1.0f - state.brightness) * COLOR_PICKER_HEIGHT);
+        float indicatorX = state.pickerX + state.saturation * COLOR_PICKER_WIDTH;
+        float indicatorY = state.pickerY + (1.0f - state.brightness) * COLOR_PICKER_HEIGHT;
 
-        drawRect(colorPosX - 3.0f, colorPosY - 3.0f,
-                6.0f, 6.0f, COLOR_INDICATOR_WHITE.getRGB());
-        drawRect(colorPosX - 2.0f, colorPosY - 2.0f,
-                4.0f, 4.0f, COLOR_INDICATOR_BLACK.getRGB());
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glEnable(GL11.GL_LINE_SMOOTH);
+        GL11.glLineWidth(1.5f);
+        GL11.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        GL11.glBegin(GL11.GL_LINE_LOOP);
+        float r = 3.0f;
+        for (int i = 0; i <= 360; i += 30) {
+            double rad = Math.toRadians(i);
+            GL11.glVertex2f(indicatorX + (float) Math.cos(rad) * r, indicatorY + (float) Math.sin(rad) * r);
+        }
+        GL11.glEnd();
+        GL11.glDisable(GL11.GL_LINE_SMOOTH);
+        GL11.glDisable(GL11.GL_BLEND);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
-    private void handleColorPickerClick(int mouseX, int mouseY, int mouseButton,
-                                        ColorPickerState state, ColorProperty colorValue) {
-        if (mouseButton == 0) {
-            if (isHovered(mouseX, mouseY, state.pickerX, state.hueSliderY,
-                    COLOR_PICKER_WIDTH, HUE_SLIDER_HEIGHT)) {
-                state.draggingHue = true;
-                state.hue = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
-            } else if (isHovered(mouseX, mouseY, state.pickerX, state.alphaSliderY,
-                    COLOR_PICKER_WIDTH, ALPHA_SLIDER_HEIGHT)) {
-                state.draggingAlpha = true;
-                state.alpha = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
-            } else if (isHovered(mouseX, mouseY, state.pickerX, state.pickerY,
-                    COLOR_PICKER_WIDTH, COLOR_PICKER_HEIGHT)) {
-                state.draggingColor = true;
-                state.saturation = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                state.brightness = 1.0f - MathHelper.clamp_float((mouseY - state.pickerY) / COLOR_PICKER_HEIGHT, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
-            }
+    private void handleColorPickerClick(int mouseX, int mouseY, int mouseButton, ColorPickerState state, ColorProperty colorValue) {
+        if (mouseButton != 0) return;
+        if (isHovered(mouseX, mouseY, state.pickerX, state.pickerY, COLOR_PICKER_WIDTH, COLOR_PICKER_HEIGHT)) {
+            state.draggingColor = true;
+            state.saturation = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+            state.brightness = Math.max(0.0f, Math.min(1.0f, 1.0f - (mouseY - state.pickerY) / COLOR_PICKER_HEIGHT));
+            updateColorFromState(state, colorValue);
+        } else if (isHovered(mouseX, mouseY, state.pickerX, state.hueSliderY, COLOR_PICKER_WIDTH, HUE_SLIDER_HEIGHT)) {
+            state.draggingHue = true;
+            state.hue = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+            updateColorFromState(state, colorValue);
+        } else if (isHovered(mouseX, mouseY, state.pickerX, state.alphaSliderY, COLOR_PICKER_WIDTH, ALPHA_SLIDER_HEIGHT)) {
+            state.draggingAlpha = true;
+            state.alpha = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+            updateColorFromState(state, colorValue);
         }
     }
 
@@ -896,129 +1165,96 @@ public class ClickGui extends GuiScreen {
         for (Map.Entry<ColorProperty, ColorPickerState> entry : colorPickerStates.entrySet()) {
             ColorProperty colorValue = entry.getKey();
             ColorPickerState state = entry.getValue();
-
+            if (state.draggingColor) {
+                state.saturation = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+                state.brightness = Math.max(0.0f, Math.min(1.0f, 1.0f - (mouseY - state.pickerY) / COLOR_PICKER_HEIGHT));
+                updateColorFromState(state, colorValue);
+            }
             if (state.draggingHue) {
-                state.hue = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
-            } else if (state.draggingAlpha) {
-                state.alpha = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
-            } else if (state.draggingColor) {
-                state.saturation = MathHelper.clamp_float((mouseX - state.pickerX) / COLOR_PICKER_WIDTH, 0.0f, 1.0f);
-                state.brightness = 1.0f - MathHelper.clamp_float((mouseY - state.pickerY) / COLOR_PICKER_HEIGHT, 0.0f, 1.0f);
-                updateColorProperty(state, colorValue);
+                state.hue = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+                updateColorFromState(state, colorValue);
+            }
+            if (state.draggingAlpha) {
+                state.alpha = Math.max(0.0f, Math.min(1.0f, (mouseX - state.pickerX) / COLOR_PICKER_WIDTH));
+                updateColorFromState(state, colorValue);
             }
         }
     }
 
-    private void updateColorProperty(ColorPickerState state, ColorProperty prop) {
+    private void updateColorFromState(ColorPickerState state, ColorProperty colorValue) {
         int rgb = Color.HSBtoRGB(state.hue, state.saturation, state.brightness);
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
-        int a = (int) (state.alpha * 255);
-        int color = (a << 24) | (r << 16) | (g << 8) | b;
-        prop.setValue(color);
+        Color c = new Color(rgb);
+        int rgba = new Color(c.getRed(), c.getGreen(), c.getBlue(), (int)(state.alpha * 255)).getRGB();
+        colorValue.setValue(rgba);
     }
 
-    private void updateSliderValue(int mouseX, float sliderX, float sliderWidth,
-                                   double min, double max, double increment, Property<?> prop) {
-        double rawValue = (mouseX - sliderX) * (max - min) / sliderWidth + min;
-        double steppedValue = Math.round(rawValue / increment) * increment;
-        double newValue = MathHelper.clamp_double(steppedValue, min, max);
-
-        if (prop instanceof FloatProperty) {
-            ((FloatProperty) prop).setValue((float) newValue);
-        } else if (prop instanceof IntProperty) {
-            ((IntProperty) prop).setValue((int) newValue);
-        } else if (prop instanceof PercentProperty) {
-            ((PercentProperty) prop).setValue((int) newValue);
+    private void updateSliderValue(int mouseX, float sliderX, float sliderWidth, double min, double max, double increment, Property<?> numValue) {
+        double percent = (mouseX - sliderX) / sliderWidth;
+        percent = Math.max(0.0, Math.min(1.0, percent));
+        double val = min + percent * (max - min);
+        if (increment > 0) {
+            val = Math.round(val / increment) * increment;
+        }
+        val = Math.max(min, Math.min(max, val));
+        if (numValue instanceof FloatProperty) {
+            numValue.setValue((float) val);
+        } else if (numValue instanceof IntProperty) {
+            numValue.setValue((int) Math.round(val));
+        } else if (numValue instanceof PercentProperty) {
+            numValue.setValue((int) Math.round(val));
         }
     }
 
-    private void drawRect(float x, float y, float width, float height, int color) {
-        net.minecraft.client.gui.Gui.drawRect((int) x, (int) y, (int) (x + width), (int) (y + height), color);
-    }
-
     private boolean isHovered(int mouseX, int mouseY, float x, float y, float width, float height) {
-        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
     private void scissorStart(float x, float y, float width, float height) {
         ScaledResolution sr = new ScaledResolution(mc);
         double scale = sr.getScaleFactor();
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor(
-                (int) (x * scale),
-                (int) ((sr.getScaledHeight() - y - height) * scale),
-                (int) (width * scale),
-                (int) (height * scale)
-        );
+        GL11.glScissor((int) (x * scale), (int) ((sr.getScaledHeight() - y - height) * scale),
+                (int) (width * scale), (int) (height * scale));
     }
 
     private void scissorEnd() {
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
 
-    private double animate(double target, double current, double speed) {
-        double delta = target - current;
-        if (Math.abs(delta) < 0.001) return target;
-        return current + delta * speed;
+    private void drawRect(float x, float y, float width, float height, int color) {
+        GuiScreen.drawRect((int) x, (int) y, (int) (x + width), (int) (y + height), color);
     }
 
-    @Override
-    public boolean doesGuiPauseGame() {
-        return false;
+    private double animate(double target, double current, double speed) {
+        return current + (target - current) * speed;
     }
 
     private void savePositions() {
-        JsonObject json = new JsonObject();
-        json.addProperty("x", posX);
-        json.addProperty("y", posY);
-        if (selectedCategory != null) {
-            json.addProperty("category", selectedCategory.name());
-        }
-        if (selectedModule != null) {
-            json.addProperty("module", selectedModule.getName());
-        }
-        json.addProperty("moduleScroll", moduleScroll);
-        json.addProperty("valueScroll", valueScroll);
-        try (FileWriter writer = new FileWriter(configFile)) {
-            new GsonBuilder().setPrettyPrinting().create().toJson(json, writer);
+        try {
+            configFile.getParentFile().mkdirs();
+            JsonObject json = new JsonObject();
+            json.addProperty("posX", isMaximized ? savedPosX : posX);
+            json.addProperty("posY", isMaximized ? savedPosY : posY);
+            json.addProperty("maximized", isMaximized);
+            try (FileWriter writer = new FileWriter(configFile)) {
+                new GsonBuilder().create().toJson(json, writer);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     private void loadPositions() {
-        if (!configFile.exists()) return;
-        try (FileReader reader = new FileReader(configFile)) {
-            JsonObject json = new JsonParser().parse(reader).getAsJsonObject();
-            if (json.has("x")) posX = json.get("x").getAsFloat();
-            if (json.has("y")) posY = json.get("y").getAsFloat();
-            if (json.has("category")) {
-                String catName = json.get("category").getAsString();
-                for (Module.Category cat : Module.Category.values()) {
-                    if (cat.name().equals(catName)) {
-                        selectedCategory = cat;
-                        break;
-                    }
+        try {
+            if (configFile.exists()) {
+                try (FileReader reader = new FileReader(configFile)) {
+                    JsonObject json = new JsonParser().parse(reader).getAsJsonObject();
+                    if (json.has("posX")) posX = json.get("posX").getAsFloat();
+                    if (json.has("posY")) posY = json.get("posY").getAsFloat();
+                    if (json.has("maximized")) lastMaximized = json.get("maximized").getAsBoolean();
                 }
             }
-            if (json.has("module")) {
-                String modName = json.get("module").getAsString();
-                for (List<Module> list : categoryModules.values()) {
-                    for (Module m : list) {
-                        if (m.getName().equals(modName)) {
-                            selectedModule = m;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (json.has("moduleScroll")) moduleScroll = json.get("moduleScroll").getAsFloat();
-            if (json.has("valueScroll")) valueScroll = json.get("valueScroll").getAsFloat();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

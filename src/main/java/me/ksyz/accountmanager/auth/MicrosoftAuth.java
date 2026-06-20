@@ -35,13 +35,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-/*
- * This file is derived from https://github.com/ksyzov/AccountManager.
- * Originally licensed under the GNU LGPL.
- *
- * This modified version is licensed under the GNU GPL v3.
- */
-// Based on Auth Me (https://github.com/axieum/authme)
 public final class MicrosoftAuth {
     private static CloseableHttpClient createTrustedHttpClient() {
         try {
@@ -61,7 +54,6 @@ public final class MicrosoftAuth {
         return HttpClients.createDefault();
     }
 
-    // A reusable Apache HTTP request config
     private static final RequestConfig REQUEST_CONFIG = RequestConfig
             .custom()
             .setConnectionRequestTimeout(30_000)

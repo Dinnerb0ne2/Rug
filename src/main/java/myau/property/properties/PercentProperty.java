@@ -18,19 +18,19 @@ public class PercentProperty extends Property<Integer> {
     }
 
     public PercentProperty(String name, Integer value, Integer minimum, Integer maximum, BooleanSupplier booleanSupplier) {
-        super(name, value, value1 -> value1 >= minimum && value1 <= maximum, booleanSupplier);
-        this.minimum = minimum;
-        this.maximum = maximum;
+        super(name, value, value1 -> value1 >= Math.min(minimum, maximum) && value1 <= Math.max(minimum, maximum), booleanSupplier);
+        this.minimum = Math.min(minimum, maximum);
+        this.maximum = Math.max(minimum, maximum);
     }
 
     @Override
     public String getValuePrompt() {
-        return String.format("%d-%d%%", this.minimum, this.maximum);
+        return String.format("%d-%d", this.minimum, this.maximum);
     }
 
     @Override
     public String formatValue() {
-        return String.format("&b%d%%", this.getValue());
+        return String.format("&e%d%%", this.getValue());
     }
 
     @Override
@@ -48,11 +48,11 @@ public class PercentProperty extends Property<Integer> {
         jsonObject.addProperty(this.getName(), this.getValue());
     }
 
-    public Integer getMaximum() {
-        return maximum;
-    }
-
     public Integer getMinimum() {
         return minimum;
+    }
+
+    public Integer getMaximum() {
+        return maximum;
     }
 }

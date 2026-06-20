@@ -27,11 +27,11 @@ public class FastPlace extends Module {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final DecimalFormat df = new DecimalFormat("0.0#", new DecimalFormatSymbols(Locale.US));
     private long delayMS = 0L;
-    public final FloatProperty delay = new FloatProperty("delay", 1.0F, 1.0F, 3.0F);
-    public final BooleanProperty blocksOnly = new BooleanProperty("blocks-only", true);
-    public final BooleanProperty placeFix = new BooleanProperty("place-fix", true);
-    public final BooleanProperty skipObsidian = new BooleanProperty("skip-obsidian", true);
-    public final BooleanProperty skipInteractable = new BooleanProperty("skip-interactable", true);
+    public final FloatProperty delay = new FloatProperty("Delay", 1.0F, 1.0F, 3.0F);
+    public final BooleanProperty blocksOnly = new BooleanProperty("Blocks-Only", true);
+    public final BooleanProperty placeFix = new BooleanProperty("Place-Fix", true);
+    public final BooleanProperty skipObsidian = new BooleanProperty("Skip-Obsidian", true);
+    public final BooleanProperty skipInteractable = new BooleanProperty("Skip-Interactable", true);
 
     private boolean canPlace() {
         ItemStack stack = mc.thePlayer.getHeldItem();

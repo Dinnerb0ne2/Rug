@@ -4,8 +4,8 @@ import myau.module.Module;
 import myau.property.properties.BooleanProperty;
 
 public class AntiDebuff extends Module {
-    public final BooleanProperty blindness = new BooleanProperty("blindness", true);
-    public final BooleanProperty nausea = new BooleanProperty("nausea", true);
+    public final BooleanProperty blindness = new BooleanProperty("Blindness", true);
+    public final BooleanProperty nausea = new BooleanProperty("Nausea", true);
 
     public AntiDebuff() {
         super("AntiDebuff", false);

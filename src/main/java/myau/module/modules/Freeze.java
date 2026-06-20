@@ -36,8 +36,8 @@ public class Freeze extends Module {
     private boolean s08 = false;
     private final int color = new Color(209, 1, 1, 255).getRGB();
     
-    public final BooleanProperty renderTimer = new BooleanProperty("render-timer", false);
-    public final IntProperty maxTimeout = new IntProperty("max-timeout", 300, 50, 600);
+    public final BooleanProperty renderTimer = new BooleanProperty("Render-Timer", false);
+    public final IntProperty maxTimeout = new IntProperty("Max-Timeout", 300, 50, 600);
 
     public Freeze() {
         super("Freeze", false);

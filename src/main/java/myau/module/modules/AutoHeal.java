@@ -24,11 +24,11 @@ public class AutoHeal extends Module {
     private boolean shouldHeal = false;
     private int prevSlot = -1;
     private int hurtTick = 0;
-    public final PercentProperty health = new PercentProperty("health", 35);
-    public final IntProperty delay = new IntProperty("delay", 4000, 0, 5000);
-    public final BooleanProperty regenCheck = new BooleanProperty("regen-check", false);
-    public final BooleanProperty hurtCheck = new BooleanProperty("hurt-check", false);
-    public final IntProperty hurtTime = new IntProperty("hurt-time", 20, 1, 100, hurtCheck::getValue);
+    public final PercentProperty health = new PercentProperty("Health", 35);
+    public final IntProperty delay = new IntProperty("Delay", 4000, 0, 5000);
+    public final BooleanProperty regenCheck = new BooleanProperty("Regen-Check", false);
+    public final BooleanProperty hurtCheck = new BooleanProperty("Hurt-Check", false);
+    public final IntProperty hurtTime = new IntProperty("Hurt-Time", 20, 1, 100, hurtCheck::getValue);
 
     private int findHealingItem() {
         for (int i = 0; i < 9; i++) {
