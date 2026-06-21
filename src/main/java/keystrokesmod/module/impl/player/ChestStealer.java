@@ -137,8 +137,8 @@ public class ChestStealer extends Module {
                     boolean isEquipment = isEquipment(stack);
                     int targetSlot = isEquipment && prioritizeEquipment.isToggled() ? 
                             findBestHotbarSlot(stack) : -1;
-                    
-                    ContainerUtils.steal(containerChest, slot, targetSlot);
+                    // ContainerUtils.steal(containerChest, slot, targetSlot);
+                    ContainerUtils.steal(containerChest, slot);
                     
                     // Update smart delay tracking
                     updateSmartDelay(slot);
@@ -182,7 +182,7 @@ public class ChestStealer extends Module {
         // Add some additional randomness
         baseDelay += ThreadLocalRandom.current().nextInt(-20, 20);
         
-        return Math.max(baseDelay, minStealDelay.getInput());
+        return Math.max(baseDelay, (long) minStealDelay.getInput());
     }
 
     private void close() {
@@ -246,7 +246,7 @@ public class ChestStealer extends Module {
     private boolean isBadPotion(ItemStack stack) {
         if (!(stack.getItem() instanceof ItemPotion)) return false;
         
-        ItemPotion potion = (ItemPotion) stack;
+        ItemPotion potion = (ItemPotion) stack.getItem();
         List<PotionEffect> effects = potion.getEffects(stack);
         
         if (effects == null || effects.isEmpty()) return false;
