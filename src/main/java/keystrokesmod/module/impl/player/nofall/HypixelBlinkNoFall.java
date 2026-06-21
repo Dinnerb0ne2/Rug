@@ -2,6 +2,7 @@ package keystrokesmod.module.impl.player.nofall;
 
 import keystrokesmod.event.PreMotionEvent;
 import keystrokesmod.module.impl.player.NoFall;
+import keystrokesmod.module.impl.player.blink.NormalBlink;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.impl.SubMode;
 import keystrokesmod.utility.BlockUtils;
@@ -9,12 +10,11 @@ import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 
-import static keystrokesmod.module.ModuleManager.blink;
 import static keystrokesmod.module.ModuleManager.scaffold;
 
 public class HypixelBlinkNoFall extends SubMode<NoFall> {
     private final SliderSetting minFallDistance;
-
+    private final NormalBlink blink = new NormalBlink("Blink", this);
     private boolean blinked = false;
     private boolean prevOnGround = false;
     private double fallDistance = 0;
@@ -26,10 +26,8 @@ public class HypixelBlinkNoFall extends SubMode<NoFall> {
 
     @Override
     public void onDisable() {
-        if (blinked) {
-            blink.disable();
-            blinked = false;
-        }
+        blink.disable();
+        blinked = false;
     }
 
     @SubscribeEvent

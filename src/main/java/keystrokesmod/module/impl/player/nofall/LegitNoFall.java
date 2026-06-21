@@ -8,16 +8,15 @@ import keystrokesmod.module.impl.player.NoFall;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.impl.SubMode;
-import keystrokesmod.utility.aim.AimSimulator;
 import keystrokesmod.utility.RotationUtils;
 import keystrokesmod.utility.Utils;
+import keystrokesmod.utility.aim.AimSimulator;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
@@ -97,6 +96,7 @@ public class LegitNoFall extends SubMode<NoFall> {
     }
 
     private void sendPlace() {
-        mc.getNetHandler().addToSendQueue(new C08PacketPlayerBlockPlacement(mc.thePlayer.getHeldItem()));
+        Utils.sendClick(1, true);
+        Utils.sendClick(1, false);
     }
 }

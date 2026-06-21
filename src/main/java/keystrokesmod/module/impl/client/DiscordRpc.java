@@ -4,7 +4,7 @@ import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.client.discordrpc.AugustusRPC;
 import keystrokesmod.module.impl.client.discordrpc.BadlionRPC;
 import keystrokesmod.module.impl.client.discordrpc.LunarClientRPC;
-import keystrokesmod.module.impl.client.discordrpc.RavenAPlusRPC;
+import keystrokesmod.module.impl.client.discordrpc.RavenXdRPC;
 import keystrokesmod.module.setting.impl.ModeValue;
 
 public class DiscordRpc extends Module {
@@ -13,11 +13,11 @@ public class DiscordRpc extends Module {
     public DiscordRpc() {
         super("DiscordRPC", category.client);
         this.registerSetting(mode = new ModeValue("Mode", this)
-                .add(new RavenAPlusRPC("Raven A+", this))
+                .add(new RavenXdRPC("RavenXD", this))
                 .add(new LunarClientRPC("Lunar Client", this))
                 .add(new AugustusRPC("Augustus", this))
                 .add(new BadlionRPC("Badlion Client", this))
-                .setDefaultValue("Raven A+"));
+                .setDefaultValue("RavenXD"));
     }
 
     public void onEnable() {

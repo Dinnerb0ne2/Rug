@@ -1,6 +1,9 @@
 package keystrokesmod.module.impl.world;
 
 import com.mojang.authlib.GameProfile;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import keystrokesmod.Raven;
 import keystrokesmod.event.SendPacketEvent;
 import keystrokesmod.module.Module;
@@ -21,12 +24,14 @@ import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class AntiBot extends Module {
-    private static final HashMap<EntityPlayer, Long> entities = new HashMap<>();
-    private static final Set<EntityPlayer> filteredBot = new HashSet<>();
+    private static final Map<EntityPlayer, Long> entities = new Object2LongOpenHashMap<>();
+    private static final Set<EntityPlayer> filteredBot = new ObjectOpenHashSet<>();
     private static ButtonSetting entitySpawnDelay;
     private static SliderSetting delay;
     private static ButtonSetting pitSpawn;
@@ -37,6 +42,8 @@ public class AntiBot extends Module {
     private static ButtonSetting whitelistGolem;
     private static ButtonSetting whitelistSilverfish;
     private static ButtonSetting whitelistChicken;
+
+    private final Map<String, EntityPlayer> lastPlayers = new Object2ObjectOpenHashMap<>();
 
     public AntiBot() {
         super("AntiBot", Module.category.world, 0);
@@ -50,59 +57,6 @@ public class AntiBot extends Module {
         this.registerSetting(whitelistGolem = new ButtonSetting("Whitelist golems", false));
         this.registerSetting(whitelistSilverfish = new ButtonSetting("Whitelist silverfishes", false));
         this.registerSetting(whitelistChicken = new ButtonSetting("Whitelist chickens", false));
-    }
-
-    @SubscribeEvent
-    public void c(final EntityJoinWorldEvent entityJoinWorldEvent) {
-        if (entitySpawnDelay.isToggled() && entityJoinWorldEvent.entity instanceof EntityPlayer && entityJoinWorldEvent.entity != mc.thePlayer) {
-            entities.put((EntityPlayer) entityJoinWorldEvent.entity, System.currentTimeMillis());
-        }
-    }
-
-    @SubscribeEvent
-    public void onSendPacket(SendPacketEvent event) {
-        if (cancelBotHit.isToggled() && event.getPacket() instanceof C02PacketUseEntity) {
-            C02PacketUseEntity packet = (C02PacketUseEntity) event.getPacket();
-            if (packet.getAction() == C02PacketUseEntity.Action.ATTACK) {
-                if (isBot(packet.getEntityFromWorld(mc.theWorld))) {
-                    event.setCanceled(true);
-                }
-            }
-        }
-    }
-
-    public void onUpdate() {
-        if (entitySpawnDelay.isToggled() && !entities.isEmpty()) {
-            entities.values().removeIf(n -> n < System.currentTimeMillis() - delay.getInput());
-        }
-
-        final HashMap<String, EntityPlayer> players = new HashMap<>();
-        for (EntityPlayer p : mc.theWorld.playerEntities) {
-            if (filteredBot.contains(p)) continue;
-
-            String name = p.getName();
-            if (players.containsKey(name)) {
-                if (debug.isToggled()) Utils.sendMessage("Filtered bot: " + p.getName() + ".");
-
-                EntityPlayer exists = players.get(name);
-                Vec3 thePlayer = new Vec3(mc.thePlayer);
-                double existsDistance = thePlayer.distanceTo(exists);
-                double curDistance = thePlayer.distanceTo(p);
-
-                if (existsDistance > curDistance) {
-                    filteredBot.add(p);
-                } else {
-                    filteredBot.add(exists);
-                }
-                break;
-            }
-            players.put(name, p);
-        }
-    }
-
-    public void onDisable() {
-        entities.clear();
-        filteredBot.clear();
     }
 
     public static boolean isBot(Entity entity) {
@@ -168,19 +122,71 @@ public class AntiBot extends Module {
                 }
             } else if (entityPlayer.isInvisible()) {
                 String unformattedText = entityPlayer.getDisplayName().getUnformattedText();
-                if (unformattedText.length() >= 3 && unformattedText.charAt(0) == '§' && unformattedText.charAt(1) == 'c') {
-                    return true;
-                }
+                return unformattedText.length() >= 3 && unformattedText.charAt(0) == '§' && unformattedText.charAt(1) == 'c';
             }
         }
         return false;
     }
 
     private static @NotNull List<String> getTablist() {
-        return Raven.mc.getNetHandler().getPlayerInfoMap().stream()
+        return Raven.mc.getNetHandler().getPlayerInfoMap().parallelStream()
                 .map(NetworkPlayerInfo::getGameProfile)
                 .filter(profile -> profile.getId() != Raven.mc.thePlayer.getUniqueID())
                 .map(GameProfile::getName)
                 .collect(Collectors.toList());
+    }
+
+    @SubscribeEvent
+    public void c(final EntityJoinWorldEvent entityJoinWorldEvent) {
+        if (entitySpawnDelay.isToggled() && entityJoinWorldEvent.entity instanceof EntityPlayer && entityJoinWorldEvent.entity != mc.thePlayer) {
+            entities.put((EntityPlayer) entityJoinWorldEvent.entity, System.currentTimeMillis());
+        }
+    }
+
+    @SubscribeEvent
+    public void onSendPacket(SendPacketEvent event) {
+        if (cancelBotHit.isToggled() && event.getPacket() instanceof C02PacketUseEntity) {
+            C02PacketUseEntity packet = (C02PacketUseEntity) event.getPacket();
+            if (packet.getAction() == C02PacketUseEntity.Action.ATTACK) {
+                if (isBot(packet.getEntityFromWorld(mc.theWorld))) {
+                    event.setCanceled(true);
+                }
+            }
+        }
+    }
+
+    public void onUpdate() {
+        if (entitySpawnDelay.isToggled() && !entities.isEmpty()) {
+            entities.values().removeIf(n -> n < System.currentTimeMillis() - delay.getInput());
+        }
+
+        lastPlayers.clear();
+        for (EntityPlayer p : mc.theWorld.playerEntities) {
+            if (filteredBot.contains(p)) continue;
+
+            String name = p.getName();
+            if (lastPlayers.containsKey(name)) {
+                if (debug.isToggled()) Utils.sendMessage("Filtered bot: " + p.getName() + ".");
+
+                EntityPlayer exists = lastPlayers.get(name);
+                Vec3 thePlayer = new Vec3(mc.thePlayer);
+                double existsDistance = thePlayer.distanceTo(exists);
+                double curDistance = thePlayer.distanceTo(p);
+
+                if (existsDistance > curDistance) {
+                    filteredBot.add(p);
+                } else {
+                    filteredBot.add(exists);
+                }
+                break;
+            }
+            lastPlayers.put(name, p);
+        }
+    }
+
+    public void onDisable() {
+        entities.clear();
+        filteredBot.clear();
+        lastPlayers.clear();
     }
 }

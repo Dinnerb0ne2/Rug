@@ -42,6 +42,15 @@ public class AimSimulator {
     private boolean delay = false;
     private int delayTicks = 1;
 
+    private boolean scale = false;
+    private double scaleX = 1;
+    private double scaleY = 1;
+
+    private boolean offset = false;
+    private double offsetX = 0;
+    private double offsetY = 0;
+    private boolean offsetPre = true;
+
     @Getter
     private Vec3 hitPos = Vec3.ZERO;
 
@@ -67,8 +76,29 @@ public class AimSimulator {
         this.delay = value;
     }
 
+    public void setScale(boolean value, double scaleX, double scaleY) {
+        this.scale = value;
+        this.scaleX = scaleX;
+        this.scaleY = scaleY;
+    }
+
+    public void setOffset(boolean value, double offsetX, double offsetY, boolean offsetPre) {
+        this.offset = value;
+        this.offsetX = offsetX;
+        this.offsetY = offsetY;
+        this.offsetPre = offsetPre;
+    }
+
     public @NotNull Pair<Float, Float> getRotation(@NotNull EntityLivingBase target) {
         AxisAlignedBB targetBox = target.getEntityBoundingBox();
+        if (scale) {
+            targetBox = targetBox.expand(
+                    (targetBox.maxX - targetBox.minX) * (scaleX - 1),
+                    (targetBox.maxY - targetBox.minY) * (scaleY - 1),
+                    (targetBox.maxZ - targetBox.minZ) * (scaleX - 1)
+            );
+        }
+
         if (boxHistory.size() >= 101) {
             boxHistory.remove(boxHistory.size() - 1);
         }
@@ -90,6 +120,9 @@ public class AimSimulator {
             targetPosition = new Vec3((aimBox.maxX + aimBox.minX) / 2, aimBox.minY + target.getEyeHeight() - 0.15, (aimBox.maxZ + aimBox.minZ) / 2);
         }
 
+        if (offset && offsetPre) {
+            targetPosition = targetPosition.add(offsetX, offsetY, offsetX);
+        }
 
         if (yDiff >= 0 && lazy) {
             if (targetPosition.y() - yDiff > target.posY) {
@@ -118,6 +151,10 @@ public class AimSimulator {
             targetPosition.z = normal(targetBox.maxZ, targetBox.minZ, targetPosition.z + lastNoiseDeltaZ);
         }
 
+        if (offset && !offsetPre) {
+            targetPosition = targetPosition.add(offsetX, offsetY, offsetX);
+        }
+
         yaw = PlayerRotation.getYaw(targetPosition);
         pitch = PlayerRotation.getPitch(targetPosition);
         hitPos = targetPosition;
@@ -135,44 +172,46 @@ public class AimSimulator {
     }
 
     public static float rotMove(double target, double current, double diff) {
-        return rotMoveNoRandom((float) target, (float) current, (float) diff);
+        return rotMove(target, current, diff, null);
     }
 
-    public static float rotMoveNoRandom(float target, float current, float diff) {
+    public static float rotMove(double target, double current, double diff, Double gcd) {
         float delta;
-        if (target > current) {
-            float dist1 = target - current;
-            float dist2 = current + 360 - target;
+        if ((float) target > (float) current) {
+            float dist1 = (float) target - (float) current;
+            float dist2 = (float) current + 360 - (float) target;
             if (dist1 > dist2) {  // 另一边移动更近
-                delta = -current - 360 + target;
+                delta = -(float) current - 360 + (float) target;
             } else {
                 delta = dist1;
             }
-        } else if (target < current) {
-            float dist1 = current - target;
-            float dist2 = target + 360 - current;
+        } else if ((float) target < (float) current) {
+            float dist1 = (float) current - (float) target;
+            float dist2 = (float) target + 360 - (float) current;
             if (dist1 > dist2) {  // 另一边移动更近
-                delta = current + 360 + target;
+                delta = (float) current + 360 + (float) target;
             } else {
                 delta = -dist1;
             }
         } else {
-            return current;
+            return (float) current;
         }
 
         delta = RotationUtils.normalize(delta);
+        if (gcd != null)
+            delta = (float) (Math.round(delta / gcd) * gcd);
 
         if (Math.abs(delta) < 0.1 * Math.random() + 0.1) {
-            return current;
-        } else if (Math.abs(delta) <= diff) {
-            return current + delta;
+            return (float) current;
+        } else if (Math.abs(delta) <= (float) diff) {
+            return (float) current + delta;
         } else {
             if (delta < 0) {
-                return current - diff;
+                return (float) current - (float) diff;
             } else if (delta > 0) {
-                return current + diff;
+                return (float) current + (float) diff;
             } else {
-                return current;
+                return (float) current;
             }
         }
     }
@@ -183,5 +222,10 @@ public class AimSimulator {
 
     public static boolean equals(@NotNull Vec2 rot1, @NotNull Vec2 rot2) {
         return yawEquals(rot1.x, rot2.x) && Math.abs(rot1.y - rot2.y) < 0.1;
+    }
+
+    public static double getGCD() {
+        double f = mc.gameSettings.mouseSensitivity * 0.6 + 0.2;
+        return f * f * f * 8.0 * 0.15;
     }
 }

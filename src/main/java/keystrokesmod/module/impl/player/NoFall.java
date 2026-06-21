@@ -4,7 +4,7 @@ import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.player.nofall.*;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.module.setting.impl.ModeValue;
-import keystrokesmod.utility.*;
+import keystrokesmod.utility.Utils;
 
 public class NoFall extends Module {
     private final ModeValue mode;
@@ -20,7 +20,6 @@ public class NoFall extends Module {
                 .add(new OnGround1NoFall("OnGround1", this))
                 .add(new OnGround2NoFall("OnGround2", this))
                 .add(new VulcanNoFall("Vulcan", this))
-                .add(new HypixelNoGroundNoFall("HypixelNoGround", this))
         );
         this.registerSetting(ignoreVoid = new ButtonSetting("Ignore void", true));
     }

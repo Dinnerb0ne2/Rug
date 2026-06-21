@@ -1,66 +1,72 @@
 package keystrokesmod.module.impl.movement.step;
 
-import keystrokesmod.event.PreMotionEvent;
-import keystrokesmod.event.PreUpdateEvent;
+import it.unimi.dsi.fastutil.doubles.DoubleList;
+import keystrokesmod.event.PreTickEvent;
+import keystrokesmod.event.StepEvent;
 import keystrokesmod.module.impl.movement.Step;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.impl.SubMode;
+import keystrokesmod.utility.BlockUtils;
 import keystrokesmod.utility.MoveUtil;
+import keystrokesmod.utility.PacketUtils;
 import keystrokesmod.utility.Utils;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockSlab;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import org.jetbrains.annotations.NotNull;
 
 public class HypixelStep extends SubMode<Step> {
-    private final SliderSetting delay = new SliderSetting("Delay", 0, 0, 5000, 250, "ms");
+    public static final DoubleList MOTION = DoubleList.of(.42, .75, 1);
 
-    private int offGroundTicks = -1;
-    private boolean stepping = false;
+    private final SliderSetting delay;
+    private final SliderSetting timer;
+
     private long lastStep = -1;
+    private boolean stepped = false;
 
-    public HypixelStep(String name, Step parent) {
+    public HypixelStep(String name, @NotNull Step parent) {
         super(name, parent);
-        this.registerSetting(delay);
+        this.registerSetting(delay = new SliderSetting("Delay", 1000, 0, 5000, 250, "ms"));
+        this.registerSetting(timer = new SliderSetting("Timer", 0.25, 0.25, 1, 0.01));
     }
 
     @Override
-    public void onDisable() {
-        offGroundTicks = -1;
-        stepping = false;
+    public void onDisable() throws Throwable {
+        mc.thePlayer.stepHeight = 0.6f;
+        Utils.resetTimer();
     }
 
     @SubscribeEvent
-    public void onPreMotion(PreMotionEvent event) {
-        final long time = System.currentTimeMillis();
-        if (mc.thePlayer.onGround && mc.thePlayer.isCollidedHorizontally && MoveUtil.isMoving() && time - lastStep >= delay.getInput()) {
-            stepping = true;
-            lastStep = time;
+    public void onStep(@NotNull StepEvent event) {
+        if (event.getHeight() == 1 && mc.thePlayer.onGround && !Utils.inLiquid()) {
+            Block block = BlockUtils.getBlock(mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ);
+            if (block instanceof BlockStairs || block instanceof BlockSlab) return;
+
+            Utils.getTimer().timerSpeed = (float) timer.getInput();
+            stepped = true;
+            for (double motion : MOTION) {
+                MoveUtil.strafe(MoveUtil.getBaseMoveSpeed());
+                PacketUtils.sendPacket(new C03PacketPlayer.C04PacketPlayerPosition(
+                        mc.thePlayer.posX,
+                        mc.thePlayer.posY + motion,
+                        mc.thePlayer.posZ,
+                        false
+                ));
+            }
+            mc.thePlayer.stepHeight = 0.6f;
+            lastStep = System.currentTimeMillis();
         }
     }
 
     @SubscribeEvent
-    public void onPreUpdate(PreUpdateEvent event) {
-        if (mc.thePlayer.onGround) {
-            offGroundTicks = 0;
-        } else if (offGroundTicks != -1) {
-            offGroundTicks++;
+    public void onPreTick(PreTickEvent event) {
+        if (stepped) {
+            Utils.resetTimer();
+            stepped = false;
         }
-
-        if (stepping) {
-            if (!MoveUtil.isMoving() || Utils.jumpDown() || (!mc.thePlayer.isCollidedHorizontally && offGroundTicks != 3)) {
-                stepping = false;
-                return;
-            }
-
-            switch (offGroundTicks) {
-                case 0:
-                    MoveUtil.stop();
-                    MoveUtil.strafe();
-                    mc.thePlayer.jump();
-                    break;
-                case 3:
-                    MoveUtil.moveFlying(0.1);
-                    mc.thePlayer.motionY = MoveUtil.predictedMotion(mc.thePlayer.motionY, 2);
-                    break;
-            }
-        }
+        if (System.currentTimeMillis() - lastStep > delay.getInput())
+            mc.thePlayer.stepHeight = 1;
     }
 }

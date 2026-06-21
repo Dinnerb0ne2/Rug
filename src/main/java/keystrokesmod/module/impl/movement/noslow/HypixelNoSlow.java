@@ -4,6 +4,7 @@ import keystrokesmod.event.PreMotionEvent;
 import keystrokesmod.event.SendPacketEvent;
 import keystrokesmod.module.impl.movement.NoSlow;
 import keystrokesmod.module.impl.other.SlotHandler;
+import keystrokesmod.module.impl.player.blink.NormalBlink;
 import keystrokesmod.utility.ContainerUtils;
 import keystrokesmod.utility.PacketUtils;
 import keystrokesmod.utility.Utils;
@@ -11,23 +12,24 @@ import net.minecraft.item.ItemBow;
 import net.minecraft.item.ItemPotion;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemSword;
+import net.minecraft.network.play.client.C07PacketPlayerDigging;
 import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.util.BlockPos;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import static net.minecraft.util.EnumFacing.DOWN;
+
 public class HypixelNoSlow extends INoSlow {
     private int offGroundTicks = 0;
     private boolean send = false;
 
+    private final NormalBlink blink = new NormalBlink("Blink", this);
+    private boolean cycle = false;
+
     public HypixelNoSlow(String name, @NotNull NoSlow parent) {
         super(name, parent);
-    }
-
-    @Override
-    public void onUpdate() {
-        if (!mc.thePlayer.isUsingItem() || SlotHandler.getHeldItem() == null) return;
     }
 
     @SubscribeEvent
@@ -50,6 +52,31 @@ public class HypixelNoSlow extends INoSlow {
         } else if (item != null && mc.thePlayer.isUsingItem() && !(item.getItem() instanceof ItemSword)) {
             event.setPosY(event.getPosY() + 1E-14);
         }
+
+        if (NoSlow.sword.isToggled())
+            if (mc.thePlayer.isUsingItem()
+                    && item != null && item.getItem() instanceof ItemSword) {
+                if (cycle) {
+                    blink.enable();
+                    PacketUtils.sendPacket(new C07PacketPlayerDigging(
+                            C07PacketPlayerDigging.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, DOWN
+                    ));
+                    cycle = false;
+                } else {
+                    blink.disable();
+                    PacketUtils.sendPacket(new C08PacketPlayerBlockPlacement(SlotHandler.getHeldItem()));
+                    cycle = true;
+                }
+            } else {
+                cycle = false;
+                blink.disable();
+            }
+    }
+
+    @Override
+    public void onDisable() throws Throwable {
+        cycle = false;
+        blink.disable();
     }
 
     @SubscribeEvent
@@ -64,14 +91,20 @@ public class HypixelNoSlow extends INoSlow {
                 send = true;
                 event.setCanceled(true);
             }
+        } else if (event.getPacket() instanceof C07PacketPlayerDigging) {
+            C07PacketPlayerDigging packet = (C07PacketPlayerDigging) event.getPacket();
+            if (packet.getStatus() == C07PacketPlayerDigging.Action.RELEASE_USE_ITEM) {
+                if (send) {
+                    // or get bad packet flag
+                    event.setCanceled(true);
+                }
+                send = false;
+            }
         }
     }
 
     @Override
     public float getSlowdown() {
-        ItemStack item = SlotHandler.getHeldItem();
-        if (item != null && item.getItem() instanceof ItemSword)
-            return 0.8f;
         return 1;
     }
 }

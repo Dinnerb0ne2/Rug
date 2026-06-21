@@ -17,9 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class ModuleManager {
-    static List<Module> modules = new ArrayList<>();
     public static List<Module> organizedModules = new ArrayList<>();
-
     public static Module longJump;
     public static Blink blink;
     public static Module nameHider;
@@ -62,6 +60,7 @@ public class ModuleManager {
     public static NoCameraClip noCameraClip;
     public static AutoPlay autoPlay;
     public static CustomName customName;
+    public static CustomFOV customFOV;
     public static CommandChat commandChat;
     public static Phase phase;
     public static PingSpoof pingSpoof;
@@ -90,7 +89,6 @@ public class ModuleManager {
     public static AutoRespawn autoRespawn;
     public static Clutch clutch;
     public static Ambience ambience;
-    public static KillAuraV2 killAuraV2;
     public static DynamicManager dynamicManager;
     public static Disabler disabler;
     public static BridgeAssist bridgeAssist;
@@ -103,7 +101,7 @@ public class ModuleManager {
     public static AutoRegister autoRegister;
     public static NoteBot noteBot;
     public static ViewPackets viewPackets;
-    public static ArmedAura armedAura;
+    public static RageBot rageBot;
     public static HitLog hitLog;
     public static LagRange lagRange;
     public static FakePotion fakePotion;
@@ -119,13 +117,35 @@ public class ModuleManager {
     public static BedDefender bedDefender;
     public static ChestAura chestAura;
     public static AutoRod autoRod;
-//    public static AbilitiesBedWars abilitiesBedWars;
+    //    public static AbilitiesBedWars abilitiesBedWars;
     public static ClientTheme clientTheme;
     public static AutoChest autoChest;
     public static Teleport teleport;
     public static AntiFalseFlag antiFalseFlag;
     public static ViaVersionFix viaVersionFix;
     public static AutoGapple autoGapple;
+    public static RemoteShop remoteShop;
+    public static Regen regen;
+    public static ChatAI chatAI;
+    public static keystrokesmod.module.impl.render.ArrayList arrayList;
+    public static InvMove invMove;
+    public static MotionCamera motionCamera;
+
+    static List<Module> modules = new ArrayList<>();
+
+    private static double getWidth(@NotNull Module module) {
+        String text = module.getPrettyName()
+                + ((HUD.showInfo.isToggled() && !module.getPrettyInfo().isEmpty()) ? " " + module.getPrettyInfo() : "");
+        return HUD.getFontRenderer().width(HUD.lowercase.isToggled() ? text.toLowerCase() : text);
+    }
+
+    public static void sort() {
+        if (HUD.alphabeticalSort.isToggled()) {
+            organizedModules.sort(Comparator.comparing(Module::getPrettyName));
+        } else {
+            organizedModules.sort((c1, c2) -> Double.compare(getWidth(c2), getWidth(c1)));
+        }
+    }
 
     public void register() {
 
@@ -152,8 +172,7 @@ public class ModuleManager {
         this.addModule(hitBox = new HitBox());
         this.addModule(hitSelect = new HitSelect());
         this.addModule(killAura = new KillAura());
-        this.addModule(killAuraV2 = new KillAuraV2());
-        this.addModule(armedAura = new ArmedAura());
+        this.addModule(rageBot = new RageBot());
         this.addModule(lagRange = new LagRange());
         this.addModule(moreKB = new MoreKB());
         this.addModule(reach = new Reach());
@@ -186,7 +205,7 @@ public class ModuleManager {
 
         // movement
         this.addModule(fly = new Fly());
-        this.addModule(new InvMove());
+        this.addModule(invMove = new InvMove());
         this.addModule(keepSprint = new KeepSprint());
         this.addModule(longJump = new LongJump());
         this.addModule(noSlow = new NoSlow());
@@ -222,6 +241,8 @@ public class ModuleManager {
         this.addModule(autoRegister = new AutoRegister());
         this.addModule(viewPackets = new ViewPackets());
         this.addModule(new FlagDetector());
+        this.addModule(chatAI = new ChatAI());
+        this.addModule(new Test());
 
         // player
         this.addModule(new AntiAFK());
@@ -234,7 +255,7 @@ public class ModuleManager {
         this.addModule(backtrack = new Backtrack());
         this.addModule(blink = new Blink());
         this.addModule(chestStealer = new ChestStealer());
-        this.addModule(new DelayRemover());
+        this.addModule(new NoJumpDelay());
         this.addModule(new FakeLag());
         this.addModule(new Freecam());
         this.addModule(invManager = new InvManager());
@@ -255,6 +276,7 @@ public class ModuleManager {
         this.addModule(new ChestESP());
         this.addModule(customCape = new CustomCape());
         this.addModule(customName = new CustomName());
+        this.addModule(customFOV = new CustomFOV());
         this.addModule(freeLook = new FreeLook());
         this.addModule(fullBright = new FullBright());
         this.addModule(hud = new HUD());
@@ -280,6 +302,8 @@ public class ModuleManager {
         this.addModule(new Explosions());
         this.addModule(new KillMessage());
         this.addModule(clientTheme = new ClientTheme());
+        this.addModule(arrayList = new keystrokesmod.module.impl.render.ArrayList());
+        this.addModule(motionCamera = new MotionCamera());
 
         // world
         this.addModule(antiBot = new AntiBot());
@@ -308,6 +332,8 @@ public class ModuleManager {
         this.addModule(ghostBlock = new GhostBlock());
         this.addModule(antiFalseFlag = new AntiFalseFlag());
         this.addModule(viaVersionFix = new ViaVersionFix());
+        this.addModule(remoteShop = new RemoteShop());
+        this.addModule(regen = new Regen());
 
         // enable
         antiBot.enable();
@@ -344,19 +370,5 @@ public class ModuleManager {
             }
         }
         return null;
-    }
-
-    private static double getWidth(@NotNull Module module) {
-        String text = module.getPrettyName()
-                + ((HUD.showInfo.isToggled() && !module.getPrettyInfo().isEmpty()) ? " " + module.getPrettyInfo() : "");
-        return HUD.getFontRenderer().width(HUD.lowercase.isToggled() ? text.toLowerCase() : text);
-    }
-
-    public static void sort() {
-        if (HUD.alphabeticalSort.isToggled()) {
-            organizedModules.sort(Comparator.comparing(Module::getPrettyName));
-        } else {
-            organizedModules.sort((c1, c2) -> Double.compare(getWidth(c2), getWidth(c1)));
-        }
     }
 }

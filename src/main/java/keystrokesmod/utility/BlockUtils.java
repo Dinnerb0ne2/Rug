@@ -254,12 +254,14 @@ public class BlockUtils {
         return false;
     }
 
-    public static Block blockRelativeToPlayer(final double offsetX, final double offsetY, final double offsetZ) {
-        return mc.theWorld.getBlockState(new BlockPos(mc.thePlayer).add(offsetX, offsetY, offsetZ)).getBlock();
+    public static boolean insideBlock(final @NotNull Vec3 pos) {
+        BlockPos blockPos = new BlockPos(pos.x, pos.y, pos.z);
+        IBlockState blockState = getBlockState(blockPos);
+        Block block = blockState.getBlock();
+        return block.getCollisionBoundingBox(mc.theWorld, blockPos, blockState).isVecInside(pos.toVec3());
     }
 
-    public static boolean isBlockOver(double height, boolean boundingBox) {
-        AxisAlignedBB bb = mc.thePlayer.getEntityBoundingBox().offset(0.0, height / 2.0, 0.0).expand(0.0, height - (double) mc.thePlayer.height, 0.0);
-        return !mc.theWorld.getCollidingBoundingBoxes(mc.thePlayer, bb).isEmpty();
+    public static Block blockRelativeToPlayer(final double offsetX, final double offsetY, final double offsetZ) {
+        return mc.theWorld.getBlockState(new BlockPos(mc.thePlayer).add(offsetX, offsetY, offsetZ)).getBlock();
     }
 }

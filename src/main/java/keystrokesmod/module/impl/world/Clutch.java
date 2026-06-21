@@ -11,7 +11,10 @@ import keystrokesmod.module.setting.impl.ModeSetting;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.utils.ModeOnly;
 import keystrokesmod.script.classes.Vec3;
-import keystrokesmod.utility.*;
+import keystrokesmod.utility.BlockUtils;
+import keystrokesmod.utility.ContainerUtils;
+import keystrokesmod.utility.RotationUtils;
+import keystrokesmod.utility.Utils;
 import keystrokesmod.utility.aim.AimSimulator;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
@@ -28,7 +31,7 @@ import java.util.Optional;
 
 public class Clutch extends Module {
     private final ModeSetting mode = new ModeSetting("Rotation mode", new String[]{"None", "Block", "Strict"}, 2);
-    private final SliderSetting aimSpeed = new SliderSetting("Aim speed", 20, 10, 30, 0.5, new ModeOnly(mode, 1, 2));
+    private final SliderSetting aimSpeed = new SliderSetting("Aim speed", 20, 10, 50, 0.5, new ModeOnly(mode, 1, 2));
     private final ButtonSetting lookView = new ButtonSetting("Look view", false, new ModeOnly(mode, 1, 2));
     private final SliderSetting placeDelay = new SliderSetting("Place delay", 50, 0, 500, 1, "ms");
     private final ButtonSetting overVoid = new ButtonSetting("Over void", true);
@@ -74,7 +77,8 @@ public class Clutch extends Module {
         double minDistance = Double.MAX_VALUE;
         Triple<BlockPos, EnumFacing, Vec3> bestPlace = null;
         for (BlockPos block : blocks) {
-            if (!BlockUtils.replaceable(block) || BlockUtils.isSamePos(block, position) || BlockUtils.isSamePos(block, position.up())) continue;
+            if (!BlockUtils.replaceable(block) || BlockUtils.isSamePos(block, position) || BlockUtils.isSamePos(block, position.up()))
+                continue;
 
             final Optional<Triple<BlockPos, EnumFacing, Vec3>> optional = RotationUtils.getPlaceSide(block);
             if (!optional.isPresent()) continue;
@@ -108,14 +112,18 @@ public class Clutch extends Module {
                 final float yaw = PlayerRotation.getYaw(hitPos);
                 final float pitch = PlayerRotation.getPitch(hitPos);
 
-                rot.x = AimSimulator.rotMove(yaw, rot.x, (float) aimSpeed.getInput());
-                rot.y = AimSimulator.rotMove(pitch, rot.y, (float) aimSpeed.getInput());
+                if (aimSpeed.getInput() == aimSpeed.getMax()) {
+                    rot.x = yaw;
+                    rot.y = pitch;
+                } else {
+                    rot.x = AimSimulator.rotMove(yaw, rot.x, (float) aimSpeed.getInput());
+                    rot.y = AimSimulator.rotMove(pitch, rot.y, (float) aimSpeed.getInput());
+                }
+                RotationHandler.setRotationYaw(rot.x);
+                RotationHandler.setRotationPitch(rot.y);
                 if (lookView.isToggled()) {
                     mc.thePlayer.rotationYaw = rot.x;
                     mc.thePlayer.rotationPitch = rot.y;
-                } else {
-                    RotationHandler.setRotationYaw(rot.x);
-                    RotationHandler.setRotationPitch(rot.y);
                 }
 
                 switch ((int) mode.getInput()) {

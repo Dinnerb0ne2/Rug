@@ -1,6 +1,8 @@
 package keystrokesmod.module.impl.other;
 
 import keystrokesmod.event.MoveInputEvent;
+import keystrokesmod.event.PreMotionEvent;
+import keystrokesmod.event.PreUpdateEvent;
 import keystrokesmod.event.RotationEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.movement.TargetStrafe;
@@ -9,9 +11,9 @@ import keystrokesmod.module.setting.impl.DescriptionSetting;
 import keystrokesmod.module.setting.impl.ModeSetting;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.utils.ModeOnly;
-import keystrokesmod.utility.aim.AimSimulator;
 import keystrokesmod.utility.MoveUtil;
 import keystrokesmod.utility.RotationUtils;
+import keystrokesmod.utility.aim.AimSimulator;
 import lombok.Getter;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
@@ -26,6 +28,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Arrays;
 
 public final class RotationHandler extends Module {
+    public static final ButtonSetting rotateBody = new ButtonSetting("Rotate body", true);
+    public static final ButtonSetting fullBody = new ButtonSetting("Full body", false);
+    public static final SliderSetting randomYawFactor = new SliderSetting("Random yaw factor", 1.0, 0.0, 10.0, 1.0);
+    private static final ModeSetting defaultMoveFix = new ModeSetting("Default MoveFix", new String[]{"None", "Silent", "Strict"}, 0);
     private static @Nullable Float movementYaw = null;
     private static @Nullable Float rotationYaw = null;
     @Getter
@@ -33,21 +39,18 @@ public final class RotationHandler extends Module {
     private static @Nullable Float rotationPitch = null;
     @Getter
     private static float prevRotationPitch;
-    private boolean isSet = false;
+    @Getter
+    private static boolean isSet = false;
     private static MoveFix moveFix = MoveFix.None;
-
-    private static final ModeSetting defaultMoveFix = new ModeSetting("Default MoveFix", new String[]{"None", "Silent", "Strict"}, 0);
     private final ModeSetting smoothBack = new ModeSetting("Smooth back", new String[]{"None", "Default"}, 0);
     private final SliderSetting aimSpeed = new SliderSetting("Aim speed", 5, 1, 15, 0.1, new ModeOnly(smoothBack, 1));
-    public static final ButtonSetting rotateBody = new ButtonSetting("Rotate body", true);
-    public static final ButtonSetting fullBody = new ButtonSetting("Full body", false);
-    public static final SliderSetting randomYawFactor = new SliderSetting("Random yaw factor", 1.0, 0.0, 10.0, 1.0);
 
     public RotationHandler() {
         super("RotationHandler", category.other);
         this.registerSetting(defaultMoveFix, smoothBack, aimSpeed);
         this.registerSetting(new DescriptionSetting("Classic"));
         this.registerSetting(rotateBody, fullBody, randomYawFactor);
+        this.registerSetting(new DescriptionSetting("Debug"));
         this.canBeEnabled = false;
     }
 
@@ -61,6 +64,20 @@ public final class RotationHandler extends Module {
         RotationHandler.movementYaw = movementYaw;
     }
 
+    public static MoveFix getMoveFix() {
+        if (moveFix != null)
+            return moveFix;
+        return MoveFix.values()[(int) defaultMoveFix.getInput()];
+    }
+
+    public static void setMoveFix(MoveFix moveFix) {
+        RotationHandler.moveFix = moveFix;
+    }
+
+    public static float getRotationYaw() {
+        return getRotationYaw(mc.thePlayer.rotationYaw);
+    }
+
     public static void setRotationYaw(float rotationYaw) {
         if (AimSimulator.yawEquals(rotationYaw, mc.thePlayer.rotationYaw)) {
             RotationHandler.rotationYaw = null;
@@ -69,36 +86,22 @@ public final class RotationHandler extends Module {
         RotationHandler.rotationYaw = rotationYaw;
     }
 
+    public static float getRotationYaw(float yaw) {
+        if (rotationYaw != null)
+            return rotationYaw;
+        return yaw;
+    }
+
+    public static float getRotationPitch() {
+        return getRotationPitch(mc.thePlayer.rotationPitch);
+    }
+
     public static void setRotationPitch(float rotationPitch) {
         if (rotationPitch == mc.thePlayer.rotationPitch) {
             RotationHandler.rotationPitch = null;
             return;
         }
         RotationHandler.rotationPitch = rotationPitch;
-    }
-
-    public static void setMoveFix(MoveFix moveFix) {
-        RotationHandler.moveFix = moveFix;
-    }
-
-    public static MoveFix getMoveFix() {
-        if (moveFix != null)
-            return moveFix;
-        return MoveFix.values()[(int) defaultMoveFix.getInput()];
-    }
-
-    public static float getRotationYaw() {
-        return getRotationYaw(mc.thePlayer.rotationYaw);
-    }
-
-    public static float getRotationYaw(float yaw) {
-        if (rotationYaw != null)
-            return RotationUtils.normalize(rotationYaw);
-        return yaw;
-    }
-
-    public static float getRotationPitch() {
-        return getRotationPitch(mc.thePlayer.rotationPitch);
     }
 
     public static float getRotationPitch(float pitch) {
@@ -118,25 +121,25 @@ public final class RotationHandler extends Module {
         }
     }
 
-    /**
-     * Fix movement
-     * @param event before update living entity (move)
-     */
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onPreMotion(MoveInputEvent event) {
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onPreUpdate(PreUpdateEvent event) {
         prevRotationYaw = getRotationYaw();
         prevRotationPitch = getRotationPitch();
         if (isSet && mc.currentScreen == null) {
             float viewYaw = RotationUtils.normalize(mc.thePlayer.rotationYaw);
             float viewPitch = RotationUtils.normalize(mc.thePlayer.rotationPitch);
+
+            float serverYaw = RotationUtils.normalize(getRotationYaw());
+            float serverPitch = RotationUtils.normalize(getRotationPitch());
+
             switch ((int) smoothBack.getInput()) {
                 case 0:
                     rotationYaw = null;
                     rotationPitch = null;
                     break;
                 case 1:
-                    setRotationYaw(AimSimulator.rotMove(viewYaw, getRotationYaw(), (float) aimSpeed.getInput()));
-                    setRotationPitch(AimSimulator.rotMove(viewPitch, getRotationPitch(), (float) aimSpeed.getInput()));
+                    setRotationYaw(AimSimulator.rotMove(viewYaw, serverYaw, (float) aimSpeed.getInput()));
+                    setRotationPitch(AimSimulator.rotMove(viewPitch, serverPitch, (float) aimSpeed.getInput()));
                     break;
             }
         }
@@ -151,7 +154,20 @@ public final class RotationHandler extends Module {
             rotationYaw = rotationEvent.getYaw();
             rotationPitch = rotationEvent.getPitch();
             moveFix = rotationEvent.getMoveFix();
+        } else {
+            movementYaw = null;
+            moveFix = null;
+        }
+    }
 
+    /**
+     * Fix movement
+     *
+     * @param event before update living entity (move)
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onMoveInput(MoveInputEvent event) {
+        if (isSet) {
             switch (moveFix) {
                 case None:
                     movementYaw = null;
@@ -192,11 +208,26 @@ public final class RotationHandler extends Module {
                     movementYaw = getRotationYaw();
                     break;
             }
-        } else {
-            movementYaw = null;
-            moveFix = null;
         }
     }
+
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onPreMotion(PreMotionEvent event) {
+        if (rotationYaw != null) {
+            final float yaw = rotationYaw;
+            event.setYaw(yaw);
+            // RenderUtils.renderPitch handle this
+//            mc.thePlayer.rotationYawHead = yaw;
+
+        }
+        if (rotationPitch != null) {
+            final float pitch = rotationPitch;
+            event.setPitch(pitch);
+            // RenderUtils.renderPitch handle this
+//            mc.thePlayer.renderPitchHead = pitch;
+        }
+    }
+
 
     public enum MoveFix {
         None,

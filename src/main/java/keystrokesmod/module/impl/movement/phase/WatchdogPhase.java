@@ -8,8 +8,6 @@ import keystrokesmod.module.impl.movement.Phase;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.module.setting.impl.SliderSetting;
 import keystrokesmod.module.setting.impl.SubMode;
-import net.minecraft.util.BlockPos;
-import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,7 +31,7 @@ public class WatchdogPhase extends SubMode<Phase> {
         this.registerSetting(autoBlink = new ButtonSetting("Blink", true));
         this.registerSetting(waitingBreakBlock = new ButtonSetting("waiting break block", false));
         this.registerSetting(autoDisable = new ButtonSetting("Auto disable", false));
-        this.registerSetting(autoDisableTicks = new SliderSetting("Auto disable", 6, 1, 40, 1, "ticks"));
+        this.registerSetting(autoDisableTicks = new SliderSetting("Auto disable", 6, 1, 100, 1, "ticks"));
         this.registerSetting(exceptGround = new ButtonSetting("Except ground", false));
     }
 

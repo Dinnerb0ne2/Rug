@@ -3,6 +3,7 @@ package keystrokesmod.module.impl.other.anticheats;
 import com.mojang.realmsclient.gui.ChatFormatting;
 import keystrokesmod.module.impl.other.Anticheat;
 import keystrokesmod.module.impl.other.anticheats.utils.alert.LogUtils;
+import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class Check {
@@ -13,9 +14,20 @@ public abstract class Check {
     public Check(String checkName, @NotNull TRPlayer player) {
         this.checkName = checkName;
         this.player = player;
+        MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    protected static void customMsg(String msg) {
+        LogUtils.custom(msg);
+    }
+
+    @Override
+    protected void finalize() {
+        MinecraftForge.EVENT_BUS.unregister(this);
     }
 
     public abstract int getAlertBuffer();
+
     public abstract boolean isDisabled();
 
     protected void flag() {
@@ -42,13 +54,18 @@ public abstract class Check {
         LogUtils.prefix(checkName, msg);
     }
 
-    protected static void customMsg(String msg) {
-        LogUtils.custom(msg);
+    public void _onTick() {
     }
 
-    public void _onTick() {}
-    public void _onTeleport() {}
-    public void _onJump() {}
-    public void _onGameTypeChange() {}
-    public void _onPlaceBlock() {}
+    public void _onTeleport() {
+    }
+
+    public void _onJump() {
+    }
+
+    public void _onGameTypeChange() {
+    }
+
+    public void _onPlaceBlock() {
+    }
 }

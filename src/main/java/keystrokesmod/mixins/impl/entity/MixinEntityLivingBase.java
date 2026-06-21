@@ -46,16 +46,16 @@ public abstract class MixinEntityLivingBase extends Entity {
     }
 
     @Unique
-    private final Map<Integer, PotionEffect> raven_APlus$activePotionsMap = Maps.newHashMap();
+    private final Map<Integer, PotionEffect> raven_bS$activePotionsMap = Maps.newHashMap();
 
     @Unique
-    public PotionEffect raven_APlus$getActivePotionEffect(@NotNull Potion potionIn) {
-        return this.raven_APlus$activePotionsMap.get(potionIn.id);
+    public PotionEffect raven_XD$getActivePotionEffect(@NotNull Potion potionIn) {
+        return this.raven_bS$activePotionsMap.get(potionIn.id);
     }
 
     @Unique
-    public boolean raven_APlus$isPotionActive(@NotNull Potion potionIn) {
-        return this.raven_APlus$activePotionsMap.containsKey(potionIn.id);
+    public boolean raven_XD$isPotionActive(@NotNull Potion potionIn) {
+        return this.raven_bS$activePotionsMap.containsKey(potionIn.id);
     }
 
     @Inject(method = "moveEntityWithHeading", at = @At("HEAD"), cancellable = true)
@@ -140,8 +140,8 @@ public abstract class MixinEntityLivingBase extends Entity {
 
         this.motionY = jumpEvent.getMotionY();
 
-        if (this.raven_APlus$isPotionActive(Potion.jump)) {
-            this.motionY += (float) (this.raven_APlus$getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F;
+        if (this.raven_XD$isPotionActive(Potion.jump)) {
+            this.motionY += (float) (this.raven_XD$getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F;
         }
 
         if (this.isSprinting()) {

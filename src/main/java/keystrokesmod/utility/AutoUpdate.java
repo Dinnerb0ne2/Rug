@@ -62,7 +62,7 @@ public class AutoUpdate {
             CloseableHttpResponse response = httpClient.execute(httpGet);
 
             InputStream input = response.getEntity().getContent();
-            File file = new File(Raven.mc.mcDataDir + File.separator + "mods", "Raven-A+.jar");
+            File file = new File(Raven.mc.mcDataDir + File.separator + "mods", "Raven-XD.jar");
             file.createNewFile();
             FileOutputStream output = new FileOutputStream(file);
 
@@ -87,7 +87,7 @@ public class AutoUpdate {
     @Contract(" -> new")
     private static @NotNull Result checkVersion() {
         try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
-            HttpGet httpGet = new HttpGet("https://api.github.com/repos/Project-XD/Raven-APlus/releases/latest");
+            HttpGet httpGet = new HttpGet("https://api.github.com/repos/xia-mc/Raven-XD/releases/latest");
             CloseableHttpResponse response = httpClient.execute(httpGet);
 
             if (response.getStatusLine().getStatusCode() != 200) {

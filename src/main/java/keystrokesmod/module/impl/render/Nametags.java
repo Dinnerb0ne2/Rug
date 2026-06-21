@@ -5,9 +5,11 @@ import keystrokesmod.module.impl.world.AntiBot;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.module.setting.impl.DescriptionSetting;
 import keystrokesmod.module.setting.impl.SliderSetting;
-import keystrokesmod.utility.render.RenderUtils;
 import keystrokesmod.utility.Utils;
-import net.minecraft.client.renderer.*;
+import keystrokesmod.utility.render.RenderUtils;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
@@ -22,22 +24,24 @@ import org.lwjgl.opengl.GL11;
 import java.awt.*;
 
 public class Nametags extends Module {
-    private SliderSetting scale;
-    private ButtonSetting autoScale;
-    private ButtonSetting drawBackground;
-    private ButtonSetting dropShadow;
-    private ButtonSetting showDistance;
-    private ButtonSetting showHealth;
-    private ButtonSetting showHitsToKill;
-    private ButtonSetting showInvis;
-    private ButtonSetting removeTags;
-    private ButtonSetting renderSelf;
-    private ButtonSetting showArmor;
-    private ButtonSetting showEnchants;
-    private ButtonSetting showDurability;
-    private ButtonSetting showStackSize;
-    private int friendColor = new Color(0, 255, 0, 255).getRGB();
-    private int enemyColor = new Color(255, 0, 0, 255).getRGB();
+    private final SliderSetting scale;
+    private final ButtonSetting autoScale;
+    private final ButtonSetting drawBackground;
+    private final ButtonSetting dropShadow;
+    private final ButtonSetting showDistance;
+    private final ButtonSetting showHealth;
+    private final ButtonSetting showHitsToKill;
+    private final ButtonSetting showInvis;
+    private final ButtonSetting removeTags;
+    private final ButtonSetting renderSelf;
+    private final ButtonSetting showArmor;
+    private final ButtonSetting showEnchants;
+    private final ButtonSetting showDurability;
+    private final ButtonSetting showStackSize;
+
+    private final int friendColor = new Color(0, 255, 0, 255).getRGB();
+    private final int enemyColor = new Color(255, 0, 0, 255).getRGB();
+
     public Nametags() {
         super("Nametags", category.render, 0);
         this.registerSetting(scale = new SliderSetting("Scale", 1.0, 0.5, 5.0, 0.1));
@@ -58,7 +62,7 @@ public class Nametags extends Module {
     }
 
     @SubscribeEvent
-    public void onRenderLiving(RenderLivingEvent.Specials.@NotNull Pre e) {
+    public void onRenderLiving(RenderLivingEvent.Specials.@NotNull Pre<?> e) {
         if (e.entity instanceof EntityPlayer && (e.entity != mc.thePlayer || renderSelf.isToggled()) && e.entity.deathTime == 0) {
             final EntityPlayer entityPlayer = (EntityPlayer) e.entity;
             if (!showInvis.isToggled() && entityPlayer.isInvisible()) {
@@ -72,8 +76,7 @@ public class Nametags extends Module {
             String name;
             if (removeTags.isToggled()) {
                 name = entityPlayer.getName();
-            }
-            else {
+            } else {
                 name = entityPlayer.getDisplayName().getFormattedText();
             }
             if (showHealth.isToggled()) {
@@ -87,14 +90,11 @@ public class Nametags extends Module {
                 String color = "§";
                 if (distance <= 8) {
                     color += "c";
-                }
-                else if (distance <= 15) {
+                } else if (distance <= 15) {
                     color += "6";
-                }
-                else if (distance <= 25) {
+                } else if (distance <= 25) {
                     color += "e";
-                }
-                else {
+                } else {
                     color = "";
                 }
                 name = color + distance + "m§r " + name;
@@ -105,8 +105,7 @@ public class Nametags extends Module {
             GlStateManager.rotate(-mc.getRenderManager().playerViewY, 0.0f, 1.0f, 0.0f);
             if (entityPlayer == mc.thePlayer && mc.gameSettings.thirdPersonView == 2) {
                 GlStateManager.rotate(-mc.getRenderManager().playerViewX, 1.0f, 0.0f, 0.0f);
-            }
-            else {
+            } else {
                 GlStateManager.rotate(mc.getRenderManager().playerViewX, 1.0f, 0.0f, 0.0f);
             }
             final float n = 0.02666667f;
@@ -141,8 +140,7 @@ public class Nametags extends Module {
             int y2 = 8;
             if (Utils.isFriended(entityPlayer)) {
                 RenderUtils.drawOutline(x1, y1, x2, y2, 2, friendColor);
-            }
-            else if (Utils.isEnemy(entityPlayer)) {
+            } else if (Utils.isEnemy(entityPlayer)) {
                 RenderUtils.drawOutline(x1, y1, x2, y2, 2, enemyColor);
             }
             if (drawBackground.isToggled()) {
@@ -171,7 +169,7 @@ public class Nametags extends Module {
         }
     }
 
-    private void renderArmor(EntityPlayer e) {
+    private void renderArmor(@NotNull EntityPlayer e) {
         int pos = 0;
         for (ItemStack is : e.inventory.armorInventory) {
             if (is != null) {
@@ -184,36 +182,36 @@ public class Nametags extends Module {
             if (item.hasEffect() && (item.getItem() instanceof ItemTool || item.getItem() instanceof ItemArmor)) {
                 item.stackSize = 1;
             }
-            renderItemStack(item, pos, -20);
+            renderItemStack(item, pos);
             pos += 16;
         }
         for (int i = 3; i >= 0; --i) {
             ItemStack stack = e.inventory.armorInventory[i];
             if (stack != null) {
-                renderItemStack(stack, pos, -20);
+                renderItemStack(stack, pos);
                 pos += 16;
             }
         }
     }
 
-    private void renderItemStack(ItemStack stack, int xPos, int yPos) {
+    private void renderItemStack(ItemStack stack, int xPos) {
         GlStateManager.pushMatrix();
         GlStateManager.disableLighting();
         mc.getRenderItem().zLevel = -150.0F;
-        mc.getRenderItem().renderItemAndEffectIntoGUI(stack, xPos, yPos);
+        mc.getRenderItem().renderItemAndEffectIntoGUI(stack, xPos, -20);
         mc.getRenderItem().zLevel = 0.0F;
         GlStateManager.scale(0.5, 0.5, 0.5);
-        renderText(stack, xPos, yPos);
+        renderText(stack, xPos);
         GlStateManager.scale(2, 2, 2);
         GlStateManager.enableLighting();
         GlStateManager.popMatrix();
     }
 
-    private void renderText(ItemStack stack, int xPos, int yPos) {
-        int newYPos = yPos - 24;
+    private void renderText(@NotNull ItemStack stack, int xPos) {
+        int newYPos = -20 - 24;
         int remainingDurability = stack.getMaxDamage() - stack.getItemDamage();
         if (showDurability.isToggled() && stack.getItem() instanceof ItemArmor) {
-            mc.fontRendererObj.drawString(String.valueOf(remainingDurability), (float) (xPos * 2), (float) yPos, 16777215, dropShadow.isToggled());
+            mc.fontRendererObj.drawString(String.valueOf(remainingDurability), (float) (xPos * 2), (float) -20, 16777215, dropShadow.isToggled());
         }
         if (stack.getEnchantmentTagList() != null && stack.getEnchantmentTagList().tagCount() < 6 && showEnchants.isToggled()) {
             if (stack.getItem() instanceof ItemArmor) {
@@ -252,8 +250,7 @@ public class Nametags extends Module {
                 if (unbreakingLvl > 0) {
                     mc.fontRendererObj.drawString("ub" + unbreakingLvl, (float) (xPos * 2), (float) newYPos, -1, dropShadow.isToggled());
                 }
-            }
-            else if (stack.getItem() instanceof ItemBow) {
+            } else if (stack.getItem() instanceof ItemBow) {
                 int powerLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.power.effectId, stack);
                 int punchLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.punch.effectId, stack);
                 int flameLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.flame.effectId, stack);
@@ -276,8 +273,7 @@ public class Nametags extends Module {
                 if (unbreakingLvl > 0) {
                     mc.fontRendererObj.drawString("ub" + unbreakingLvl, (float) (xPos * 2), (float) newYPos, -1, dropShadow.isToggled());
                 }
-            }
-            else if (stack.getItem() instanceof ItemSword) {
+            } else if (stack.getItem() instanceof ItemSword) {
                 int sharpnessLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.sharpness.effectId, stack);
                 int knockbackLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.knockback.effectId, stack);
                 int fireAspectLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.fireAspect.effectId, stack);
@@ -300,8 +296,7 @@ public class Nametags extends Module {
                 if (unbreakingLvl > 0) {
                     mc.fontRendererObj.drawString("ub" + unbreakingLvl, (float) (xPos * 2), (float) newYPos, -1, dropShadow.isToggled());
                 }
-            }
-            else if (stack.getItem() instanceof ItemTool) {
+            } else if (stack.getItem() instanceof ItemTool) {
                 int unbreakingLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.unbreaking.effectId, stack);
                 int efficiencyLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.efficiency.effectId, stack);
                 int fortuneLvl = EnchantmentHelper.getEnchantmentLevel(Enchantment.fortune.effectId, stack);
@@ -327,7 +322,7 @@ public class Nametags extends Module {
             }
         }
         if (showStackSize.isToggled() && !(stack.getItem() instanceof ItemSword) && !(stack.getItem() instanceof ItemBow) && !(stack.getItem() instanceof ItemTool) && !(stack.getItem() instanceof ItemArmor)) {
-            mc.fontRendererObj.drawString(stack.stackSize + "x", (float) (xPos * 2), (float) yPos, -1, dropShadow.isToggled());
+            mc.fontRendererObj.drawString(stack.stackSize + "x", (float) (xPos * 2), (float) -20, -1, dropShadow.isToggled());
         }
     }
 }

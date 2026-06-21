@@ -1,6 +1,7 @@
 package keystrokesmod.module.impl.movement;
 
 import keystrokesmod.clickgui.ClickGui;
+import keystrokesmod.event.MoveInputEvent;
 import keystrokesmod.event.PreUpdateEvent;
 import keystrokesmod.event.SendPacketEvent;
 import keystrokesmod.module.Module;
@@ -22,8 +23,10 @@ import org.lwjgl.input.Keyboard;
 import static keystrokesmod.module.ModuleManager.*;
 
 public class InvMove extends Module {
-    public static final String[] MODES = {"Normal", "Blink", "LegitInv", "Hypixel", "None"};
+    public static final String[] MODES = {"Normal", "Blink", "LegitInv", "Hypixel"};
     private final ModeSetting mode;
+    private final ButtonSetting container;
+    private final ButtonSetting inventory;
     private final ButtonSetting noOpenPacket;
     private final ButtonSetting allowSprint;
     private final ButtonSetting allowSneak;
@@ -32,25 +35,32 @@ public class InvMove extends Module {
     private final ButtonSetting clickGui;
 
     private boolean blinking = false;
-
     private boolean clicked = false;
 
     public InvMove() {
         super("InvMove", category.movement);
         this.registerSetting(new DescriptionSetting("Allow you move in inventory."));
         this.registerSetting(mode = new ModeSetting("Mode", MODES, 0));
+        this.registerSetting(container = new ButtonSetting("Container", true));
+        this.registerSetting(inventory = new ButtonSetting("Inventory", true));
+        this.registerSetting(clickGui = new ButtonSetting("Click gui", true));
+        this.registerSetting(new DescriptionSetting("Advanced"));
         this.registerSetting(noOpenPacket = new ButtonSetting("No open packet", false));
-        this.registerSetting(allowSprint = new ButtonSetting("Allow sprint", false));
+        this.registerSetting(allowSprint = new ButtonSetting("Allow sprint", true));
         this.registerSetting(allowSneak = new ButtonSetting("Allow sneak", false));
         this.registerSetting(chestNameCheck = new ButtonSetting("Chest name check", true));
         this.registerSetting(targetNearbyCheck = new ButtonSetting("Target nearby check", true));
-        this.registerSetting(clickGui = new ButtonSetting("Click gui", true));
+    }
+
+    @SubscribeEvent
+    public void onMoveInput(MoveInputEvent event) {
+        if (mode.getInput() == 3 && canInvMove() && !(mc.currentScreen instanceof ClickGui))
+            event.setJump(false);
     }
 
     @SubscribeEvent
     public void onPreUpdate(PreUpdateEvent event) {
-        if ((mc.currentScreen instanceof GuiContainer || (clickGui.isToggled() && mc.currentScreen instanceof ClickGui))
-                && nameCheck() && targetNearbyCheck() && !scaffold.isEnabled()) {
+        if (canInvMove()) {
             if (mc.currentScreen instanceof ClickGui && clickGui.isToggled()) {
                 doInvMove();
                 return;
@@ -71,10 +81,7 @@ public class InvMove extends Module {
                 case 3:
                     MoveUtil.stop();
                     break;
-                case 4:
-                    break;
             }
-
 
             doInvMove();
         } else {
@@ -92,6 +99,18 @@ public class InvMove extends Module {
                     break;
             }
         }
+    }
+
+    public boolean canInvMove() {
+        if (!nameCheck() || !targetNearbyCheck() || scaffold.isEnabled())
+            return false;
+        if (clickGui.isToggled() && mc.currentScreen instanceof ClickGui)
+            return true;
+        if (inventory.isToggled() && mc.currentScreen instanceof GuiInventory)
+            return true;
+        if (container.isToggled() && mc.currentScreen instanceof GuiContainer)
+            return true;
+        return false;
     }
 
     @SubscribeEvent
@@ -135,7 +154,7 @@ public class InvMove extends Module {
         KeyBinding.setKeyBindState(mc.gameSettings.keyBindBack.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindBack.getKeyCode()));
         KeyBinding.setKeyBindState(mc.gameSettings.keyBindRight.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindRight.getKeyCode()));
         KeyBinding.setKeyBindState(mc.gameSettings.keyBindLeft.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindLeft.getKeyCode()));
-        KeyBinding.setKeyBindState(mc.gameSettings.keyBindJump.getKeyCode(), Utils.jumpDown());
+        KeyBinding.setKeyBindState(mc.gameSettings.keyBindJump.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindJump.getKeyCode()));
     }
 
     private void noInvMove() {

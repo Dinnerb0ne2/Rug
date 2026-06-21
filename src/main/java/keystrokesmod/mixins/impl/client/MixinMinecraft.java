@@ -10,35 +10,39 @@ import keystrokesmod.module.impl.combat.Reach;
 import keystrokesmod.module.impl.exploit.ExploitFixer;
 import keystrokesmod.module.impl.render.Animations;
 import keystrokesmod.module.impl.render.FreeLook;
+import keystrokesmod.module.impl.render.Watermark;
+import keystrokesmod.utility.Reflection;
 import keystrokesmod.utility.Utils;
+import keystrokesmod.utility.render.BackgroundUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.main.GameConfiguration;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.crash.CrashReport;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.common.MinecraftForge;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.opengl.Display;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import static keystrokesmod.Raven.mc;
 
 @Mixin(value = Minecraft.class, priority = 1001)
 public abstract class MixinMinecraft {
-
-    @Unique private @Nullable WorldClient raven_APlus$lastWorld = null;
+    @Unique private @Nullable WorldClient raven_XD$lastWorld = null;
 
     @Inject(method = "runTick", at = @At("HEAD"))
     private void runTickPre(CallbackInfo ci) {
         MinecraftForge.EVENT_BUS.post(new PreTickEvent());
 
-        if (raven_APlus$lastWorld != mc.theWorld && Utils.nullCheck()) {
+        if (raven_XD$lastWorld != mc.theWorld && Utils.nullCheck()) {
             MinecraftForge.EVENT_BUS.post(new WorldChangeEvent());
         }
 
-        this.raven_APlus$lastWorld = mc.theWorld;
+        this.raven_XD$lastWorld = mc.theWorld;
     }
 
     @Inject(method = "runTick", at = @At(value = "INVOKE",
@@ -93,5 +97,16 @@ public abstract class MixinMinecraft {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    @Inject(method = "createDisplay", at = @At(value = "RETURN"))
+    private void onSetTitle(@NotNull CallbackInfo ci) {
+        Display.setTitle("Raven XD " + Watermark.VERSION);
+    }
+
+    @Inject(method = "<init>", at = @At("RETURN"))
+    private void onInit(GameConfiguration p_i45547_1_, CallbackInfo ci) {
+        Reflection.set(Minecraft.class, "field_110444_H", BackgroundUtils.getLogoPng());
+        Reflection.set(this, "field_152354_ay", BackgroundUtils.getLogoPng());
     }
 }

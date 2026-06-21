@@ -8,8 +8,10 @@ import keystrokesmod.clickgui.ClickGui;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
 import keystrokesmod.module.impl.client.Settings;
+import keystrokesmod.module.impl.exploit.ClientSpoofer;
 import keystrokesmod.module.impl.fun.NoteBot;
 import keystrokesmod.module.impl.minigames.DuelsStats;
+import keystrokesmod.module.impl.other.ChatAI;
 import keystrokesmod.module.impl.other.FakeChat;
 import keystrokesmod.module.impl.other.KillMessage;
 import keystrokesmod.module.impl.other.NameHider;
@@ -47,7 +49,7 @@ public class Commands {
     public static void rCMD(@NotNull String c) {
         if (!c.isEmpty()) {
             String cm = c.toLowerCase();
-            List<String> args = Arrays.asList(c.split(" "));
+            List<String> args = Arrays.asList(c.split(" "));  // maybe bug
             boolean hasArgs = args.size() > 1;
             String n;
             String firstArg = args.get(0).toLowerCase();
@@ -99,10 +101,10 @@ public class Commands {
                     return;
                 }
 
-                NameHider.n = args.get(1).replace("&", "\u00A7");
+                NameHider.n = args.get(1).replace("&", "§");
 
                 for (int i = 2; i < args.size(); i++) {
-                    NameHider.n += " "+args.get(i).replace("&", "\u00A7");
+                    NameHider.n += " "+args.get(i).replace("&", "§");
                 }
 
 
@@ -211,7 +213,7 @@ public class Commands {
                     m.disable();
 
                 }
-            } else if (firstArg.equals("rename")) {
+            }else if (firstArg.equals("rename")) {
                 if (!hasArgs) {
                     print(invSyn, 1);
                     return;
@@ -263,7 +265,7 @@ public class Commands {
                 }
 
                 String s = c.substring(11);
-                s = s.replace('&', '\u00A7');
+                s = s.replace('&', '§');
                 Watermark.customName = s;
                 print("&aSet client name to " + Watermark.customName, 1);
             } else if (firstArg.equals("killmessage")) {
@@ -274,6 +276,14 @@ public class Commands {
 
                 KillMessage.killMessage = c.substring(12);
                 print("&aSet killmessage to " + KillMessage.killMessage, 1);
+            } else if (firstArg.equals("clientspoofer")) {
+                if (!hasArgs) {
+                    print(invSyn, 1);
+                    return;
+                }
+
+                ClientSpoofer.customBrand = c.substring(14);
+                print("&aSet clientspoofer custom brand to " + ClientSpoofer.customBrand, 1);
             } else if (firstArg.equals("binds")) {
                 for (Module module : Raven.getModuleManager().getModules()) {
                     if (module.getKeycode() != 0) {
@@ -497,6 +507,13 @@ public class Commands {
                     }
                     print("&cInvalid profile.", 1);
                 }
+            } else if (firstArg.equals("chat")) {
+                if (!hasArgs) {
+                    print(invSyn, 1);
+                    return;
+                }
+
+                ModuleManager.chatAI.onChat(c.substring(5));
             } else if (!firstArg.equals("help") && !firstArg.equals("?")) {
                 if (firstArg.equals("shoutout")) {
                     print("&eCelebrities:", 1);
@@ -533,7 +550,9 @@ public class Commands {
                 print("1 cname [name]", 0);
                 print("2 " + FakeChat.command + " [msg]", 0);
                 print("4 killmessage [message]", 0);
+                print("4 clientspoofer [brand]", 0);
                 print(String.format("5 clientname [name (current is '%s')]", Watermark.customName), 0);
+                print("6 chat <args>", 0);
             }
 
         }

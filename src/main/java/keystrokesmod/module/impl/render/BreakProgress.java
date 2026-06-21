@@ -7,27 +7,46 @@ import keystrokesmod.module.setting.impl.ModeSetting;
 import keystrokesmod.utility.BlockUtils;
 import keystrokesmod.utility.Reflection;
 import keystrokesmod.utility.Utils;
+import keystrokesmod.utility.render.Animation;
+import keystrokesmod.utility.render.Easing;
+import keystrokesmod.utility.render.progress.Progress;
+import keystrokesmod.utility.render.progress.ProgressManager;
 import net.minecraft.block.BlockBed;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 public class BreakProgress extends Module {
-    private ModeSetting mode;
-    private ButtonSetting manual;
-    private ButtonSetting bedAura;
-    private String[] modes = new String[]{"Percentage", "Second", "Decimal"};
+    private final ModeSetting mode;
+    private final ButtonSetting manual;
+    private final ButtonSetting bedAura;
+    private final ButtonSetting progressBar;
+    private final Animation progressAnimation = new Animation(Easing.EASE_OUT_CIRC, 200);
+    private final Progress progressObj = new Progress("BedAura");
     private double progress;
     private BlockPos block;
     private String progressStr;
 
     public BreakProgress() {
         super("BreakProgress", category.render);
-        this.registerSetting(mode = new ModeSetting("Mode", modes, 0));
+        this.registerSetting(mode = new ModeSetting("Mode", new String[]{"Percentage", "Second", "Decimal"}, 0));
         this.registerSetting(manual = new ButtonSetting("Show manual", true));
         this.registerSetting(bedAura = new ButtonSetting("Show BedAura", true));
+        this.registerSetting(progressBar = new ButtonSetting("Progress bar", false, bedAura::isToggled));
+    }
+
+    @SubscribeEvent
+    public void onRender(TickEvent.RenderTickEvent event) {
+        progressAnimation.run(progress);
+        progressObj.setProgress(progressAnimation.getValue());
+        progressObj.setText("BedAura " + progressStr);
+        if (progressBar.isToggled() && progress > 0)
+            ProgressManager.add(progressObj);
+        else
+            ProgressManager.remove(progressObj);
     }
 
     @SubscribeEvent
@@ -55,11 +74,11 @@ public class BreakProgress extends Module {
     private void setProgress() {
         switch ((int) mode.getInput()) {
             case 0: {
-                this.progressStr = (int) (100.0 * (this.progress / 1.0)) + "%";
+                this.progressStr = (int) (100.0 * (this.progress)) + "%";
                 break;
             }
             case 1: {
-                double timeLeft = Utils.rnd((double) ((1.0f - this.progress) / BlockUtils.getBlockHardness(BlockUtils.getBlock(this.block), mc.thePlayer.getHeldItem(), false, false)) / 20.0, 1);
+                double timeLeft = Utils.rnd((1.0f - this.progress) / BlockUtils.getBlockHardness(BlockUtils.getBlock(this.block), mc.thePlayer.getHeldItem(), false, false) / 20.0, 1);
                 this.progressStr = timeLeft == 0 ? "0" : timeLeft + "s";
                 break;
             }
@@ -96,7 +115,7 @@ public class BreakProgress extends Module {
             }
             this.block = mc.objectMouseOver.getBlockPos();
             this.setProgress();
-        } catch (IllegalAccessException ex) {
+        } catch (IllegalAccessException ignored) {
         }
     }
 

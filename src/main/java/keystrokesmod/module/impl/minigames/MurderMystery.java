@@ -2,30 +2,20 @@ package keystrokesmod.module.impl.minigames;
 
 import keystrokesmod.module.Module;
 import keystrokesmod.module.setting.impl.ButtonSetting;
-import keystrokesmod.utility.render.RenderUtils;
 import keystrokesmod.utility.Utils;
+import keystrokesmod.utility.render.RenderUtils;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemAxe;
 import net.minecraft.item.ItemBow;
-import net.minecraft.item.ItemSword;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 import java.awt.*;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 public class MurderMystery extends Module {
-    private final ButtonSetting alert;
-    private final ButtonSetting highlightMurderer;
-    private final ButtonSetting highlightBow;
-    private final ButtonSetting highlightInnocent;
-    private final List<EntityPlayer> murderers = new ArrayList<>();
-    private final List<EntityPlayer> hasBow = new ArrayList<>();
-    private boolean override;
-
     private static final Set<Item> MURDER_ITEMS = new HashSet<>(Arrays.asList(
             Items.wooden_sword,
             Items.stone_sword,
@@ -38,8 +28,44 @@ public class MurderMystery extends Module {
             Items.iron_axe,
             Items.diamond_axe,
             Items.stick,
-            Items.blaze_rod
+            Items.blaze_rod,
+            Items.stone_shovel,
+            Items.diamond_shovel,
+            Items.quartz,
+            Items.pumpkin_pie,
+            Items.golden_pickaxe,
+            Items.apple,
+            Items.name_tag,
+            Items.carrot_on_a_stick,
+            Items.bone,
+            Items.carrot,
+            Items.golden_carrot,
+            Items.cookie,
+            Items.diamond_axe,
+            Items.cooked_beef,
+            Items.netherbrick,
+            Items.cooked_chicken,
+            Items.record_blocks,
+            Items.golden_hoe,
+            Items.diamond_hoe,
+            Items.shears,
+            Items.cooked_fish,
+            Items.boat,
+            Items.speckled_melon,
+            Items.book,
+            Items.prismarine_shard,
+            Item.getItemById(19),
+            Item.getItemById(32),
+            Item.getItemById(175),
+            Item.getItemById(6)
     ));
+    private final ButtonSetting alert;
+    private final ButtonSetting highlightMurderer;
+    private final ButtonSetting highlightBow;
+    private final ButtonSetting highlightInnocent;
+    private final List<EntityPlayer> murderers = new ArrayList<>();
+    private final List<EntityPlayer> hasBow = new ArrayList<>();
+    private boolean override;
 
     public MurderMystery() {
         super("Murder Mystery", category.minigames);
@@ -84,11 +110,9 @@ public class MurderMystery extends Module {
                         int rgb = Color.green.getRGB();
                         if (murderers.contains(en) && highlightMurderer.isToggled()) {
                             rgb = Color.red.getRGB();
-                        }
-                        else if (hasBow.contains(en) && highlightBow.isToggled()) {
+                        } else if (hasBow.contains(en) && highlightBow.isToggled()) {
                             rgb = Color.orange.getRGB();
-                        }
-                        else if (!highlightInnocent.isToggled()) {
+                        } else if (!highlightInnocent.isToggled()) {
                             continue;
                         }
                         RenderUtils.renderEntity(en, 2, 0.0D, 0.0D, rgb, false);

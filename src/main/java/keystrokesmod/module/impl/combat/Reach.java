@@ -30,24 +30,13 @@ public class Reach extends Module {
 
     public Reach() {
         super("Reach", Module.category.combat, 0);
-        this.registerSetting(min = new SliderSetting("Min", 3.1D, 3.0D, 6.0D, 0.05D));
-        this.registerSetting(max = new SliderSetting("Max", 3.3D, 3.0D, 6.0D, 0.05D));
+        this.registerSetting(min = new SliderSetting("Min", 3.1, 0, 6, 0.05));
+        this.registerSetting(max = new SliderSetting("Max", 3.3, 0, 6, 0.05));
         this.registerSetting(chance = new SliderSetting("Chance", 100, 0, 100, 1, "%"));
         this.registerSetting(weaponOnly = new ButtonSetting("Weapon only", false));
         this.registerSetting(movingOnly = new ButtonSetting("Moving only", false));
         this.registerSetting(sprintOnly = new ButtonSetting("Sprint only", false));
         this.registerSetting(hitThroughBlocks = new ButtonSetting("Hit through blocks", false));
-    }
-
-    public void guiUpdate() {
-        Utils.correctValue(min, max);
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void e(@NotNull MouseEvent ev) {
-        if (ev.button >= 0 && ev.buttonstate && Utils.nullCheck()) {
-            call();
-        }
     }
 
     public static void call() {
@@ -93,8 +82,7 @@ public class Reach extends Module {
             Vec3 zz4;
             if (rotations != null) {
                 zz4 = RotationUtils.getVectorForRotation(rotations[1], rotations[0]);
-            }
-            else {
+            } else {
                 zz4 = zz2.getLook(1.0F);
             }
             Vec3 zz5 = zz3.addVector(zz4.xCoord * reach, zz4.yCoord * reach, zz4.zCoord * reach);
@@ -143,6 +131,17 @@ public class Reach extends Module {
             } else {
                 return null;
             }
+        }
+    }
+
+    public void guiUpdate() {
+        Utils.correctValue(min, max);
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void e(@NotNull MouseEvent ev) {
+        if (ev.button >= 0 && ev.buttonstate && Utils.nullCheck()) {
+            call();
         }
     }
 }

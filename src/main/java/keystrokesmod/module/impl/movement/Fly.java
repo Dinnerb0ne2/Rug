@@ -2,7 +2,8 @@ package keystrokesmod.module.impl.movement;
 
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.movement.fly.*;
-import keystrokesmod.module.setting.impl.*;
+import keystrokesmod.module.setting.impl.ButtonSetting;
+import keystrokesmod.module.setting.impl.ModeValue;
 import keystrokesmod.utility.render.RenderUtils;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
@@ -20,11 +21,13 @@ public class Fly extends Module {
                 .add(new AirWalkFly("AirWalk", this))
                 .add(new AirPlaceFly("AirPlace", this))
                 .add(new VulcanFly("Vulcan", this))
+                .add(new MatrixFly("Matrix", this))
                 .add(new MatrixBowFly("MatrixBow", this))
                 .add(new MatrixTNTFly("MatrixTNT", this))
                 .add(new FakeFly("Fake", this))
-                .add(new TestFly("Test", this))
+                .add(new HypixelTestFly("Test", this))
                 .add(new CustomFly("Custom", this))
+                .add(new GrimACFly("GrimAC", this))
         );
         this.registerSetting(showBPS = new ButtonSetting("Show BPS", false));
         this.registerSetting(stopAtEnd = new ButtonSetting("Stop at end", false));

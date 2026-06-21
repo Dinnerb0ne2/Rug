@@ -13,8 +13,6 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 
 import static keystrokesmod.Raven.mc;
-import static keystrokesmod.module.ModuleManager.scaffold;
-import static keystrokesmod.utility.Utils.isMoving;
 
 public class MoveUtil {
     public static final double WALK_SPEED = 0.221;
@@ -76,6 +74,10 @@ public class MoveUtil {
      * Gets the players' movement yaw
      */
     public static double direction() {
+        return Math.toRadians(directionYaw());
+    }
+
+    public static float directionYaw() {
         float rotationYaw = TargetStrafe.getMovementYaw();
 
         if (mc.thePlayer.moveForward < 0) {
@@ -97,8 +99,7 @@ public class MoveUtil {
         if (mc.thePlayer.moveStrafing < 0) {
             rotationYaw += 70 * forward;
         }
-
-        return Math.toRadians(rotationYaw);
+        return rotationYaw;
     }
 
     /**
@@ -159,12 +160,29 @@ public class MoveUtil {
                 : enoughMovementForSprinting());
     }
 
+    public static double getBaseMoveSpeed() {
+        double baseSpeed = 0.2873;
+        if (mc.thePlayer.isPotionActive(Potion.moveSpeed)) {
+            baseSpeed *= 1.0 + 0.2 * (mc.thePlayer.getActivePotionEffect(Potion.moveSpeed).getAmplifier() + 1);
+        }
+        return baseSpeed;
+    }
+
     /**
      * Basically calculates allowed horizontal distance just like NCP does
      *
      * @return allowed horizontal distance in one tick
      */
     public static double getAllowedHorizontalDistance() {
+        return getAllowedHorizontalDistance(true);
+    }
+
+    /**
+     * Basically calculates allowed horizontal distance just like NCP does
+     *
+     * @return allowed horizontal distance in one tick
+     */
+    public static double getAllowedHorizontalDistance(boolean allowSprint) {
         double horizontalDistance;
         boolean useBaseModifiers = false;
 
@@ -187,7 +205,7 @@ public class MoveUtil {
         }
 
         if (useBaseModifiers) {
-            if (canSprint(false)) {
+            if (canSprint(false) && allowSprint) {
                 horizontalDistance *= MOD_SPRINTING;
             }
 
@@ -203,6 +221,18 @@ public class MoveUtil {
         return horizontalDistance;
     }
 
+    public static int getSpeedEffect() {
+        if (mc.thePlayer.isPotionActive(Potion.moveSpeed))
+            return mc.thePlayer.getActivePotionEffect(Potion.moveSpeed).getAmplifier() + 1;
+        return 0;
+    }
+
+    public static int getJumpEffect() {
+        if (mc.thePlayer.isPotionActive(Potion.jump))
+            return mc.thePlayer.getActivePotionEffect(Potion.jump).getAmplifier() + 1;
+        return 0;
+    }
+
     /**
      * Checks if the player is moving
      *
@@ -215,6 +245,10 @@ public class MoveUtil {
     @Contract(pure = true)
     public static boolean isMoving(@NotNull EntityLivingBase entity) {
         return entity.moveForward != 0 || entity.moveStrafing != 0;
+    }
+
+    public static boolean isRealMoving() {
+        return mc.thePlayer.motionX != 0 || (mc.thePlayer.motionY != 0 && !mc.thePlayer.onGround) || mc.thePlayer.motionZ != 0;
     }
 
     public static void moveFlying(double increase) {

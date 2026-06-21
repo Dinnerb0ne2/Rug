@@ -35,6 +35,18 @@
       "keystrokesmod:toggle/quickmacro/disable"
     ]
   },
+  "toggle.augustus.enable": {
+    "category": "player",
+    "sounds": [
+      "keystrokesmod:toggle/augustus/enable"
+    ]
+  },
+  "toggle.quickmacro.disable": {
+    "category": "player",
+    "sounds": [
+      "keystrokesmod:toggle/augustus/disable"
+    ]
+  },<
   "click.alan": {
     "category": "player",
     "sounds": [

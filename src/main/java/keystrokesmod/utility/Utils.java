@@ -11,9 +11,8 @@ import keystrokesmod.module.impl.other.SlotHandler;
 import keystrokesmod.module.impl.render.AntiShuffle;
 import keystrokesmod.utility.i18n.I18nManager;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.boss.EntityWither;
+import net.minecraft.util.Timer;
 import net.minecraftforge.client.event.MouseEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -44,7 +43,6 @@ import net.minecraft.potion.Potion;
 import net.minecraft.scoreboard.*;
 import net.minecraft.util.*;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.ObfuscationReflectionHelper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -142,8 +140,12 @@ public class Utils {
         return num == Math.floor(num);
     }
 
+    public static boolean randomizeBoolean() {
+        return Math.random() >= 0.5;
+    }
+
     public static int randomizeInt(double min, double max) {
-        return (int) randomizeDouble(min, max);
+        return (int) Math.round(randomizeDouble(min, max));
     }
 
     public static double randomizeDouble(double min, double max) {
@@ -205,7 +207,7 @@ public class Utils {
             string = AntiShuffle.removeObfuscation(string);
         }
         if (ModuleManager.language != null && ModuleManager.language.isEnabled()) {
-            List<Map<String, String>> replaceMap = I18nManager.REPLACE_MAP;
+            final List<Map<String, String>> replaceMap = I18nManager.REPLACE_MAP;
             int index = (int) ModuleManager.language.mode.getInput();
             if (replaceMap.size() > index)
                 string = replaceMap.get(index).getOrDefault(string, string);
@@ -392,18 +394,25 @@ public class Utils {
     public static boolean isHypixel() {
         return !mc.isSingleplayer() && mc.getCurrentServerData() != null
                 && mc.getCurrentServerData().serverIP.contains("hypixel.net");
-    }
+    } // I'm not sure how to handle it, such as Proxy IP.
 
     public static boolean isCraftiGames() {
         return !mc.isSingleplayer() && mc.getCurrentServerData() != null
                 && (mc.getCurrentServerData().serverIP.contains("pika-network.net") || mc.getCurrentServerData().serverIP.contains("pikasys.net") || mc.getCurrentServerData().serverIP.contains("pika.host") || mc.getCurrentServerData().serverIP.contains("jartexsys.net") || mc.getCurrentServerData().serverIP.contains("jartexnetwork.com"));
     }
 
-    public static net.minecraft.util.Timer getTimer() {
-        return ObfuscationReflectionHelper.getPrivateValue(Minecraft.class, Minecraft.getMinecraft(), "timer", "field_71428_T");
+    private static Timer timer = null;
+
+    // bro this method is too fucking slow, so I improve it
+    public static Timer getTimer() {
+        if (timer == null) {
+            timer = Reflection.get(mc, "field_71428_T", Timer.class);
+            return timer;
+        }
+        return timer;
     }
 
-    public static String getHitsToKill(final EntityPlayer entityPlayer, final ItemStack itemStack) {
+    public static @NotNull String getHitsToKill(final EntityPlayer entityPlayer, final ItemStack itemStack) {
         final int n = (int) Math.ceil(ap(entityPlayer, itemStack));
         return "§" + ((n <= 1) ? "c" : ((n <= 3) ? "6" : ((n <= 5) ? "e" : "a"))) + n;
     }
@@ -482,10 +491,7 @@ public class Utils {
     }
 
     public static void resetTimer() {
-        try {
-            getTimer().timerSpeed = 1.0F;
-        } catch (NullPointerException var1) {
-        }
+        getTimer().timerSpeed = 1.0F;
     }
 
     public static boolean inInventory() {
@@ -493,6 +499,23 @@ public class Utils {
             return false;
         }
         return (mc.currentScreen != null) && (mc.thePlayer.inventoryContainer != null) && (mc.thePlayer.inventoryContainer instanceof ContainerPlayer) && (mc.currentScreen instanceof GuiInventory);
+    }
+
+    public static boolean isSkyWars() {
+        if (!Utils.nullCheck()) {
+            return false;
+        }
+        final Scoreboard scoreboard = mc.theWorld.getScoreboard();
+        if (scoreboard == null) {
+            return false;
+        }
+        final ScoreObjective objective = scoreboard.getObjectiveInDisplaySlot(1);
+        if (objective == null) {
+            return false;
+        }
+        String displayName = stripString(objective.getDisplayName()).toLowerCase();
+
+        return displayName.contains("sky wars") || displayName.contains("skywars");
     }
 
     public static int getBedwarsStatus() {
@@ -641,7 +664,7 @@ public class Utils {
     }
 
     public static boolean jumpDown() {
-        return Keyboard.isKeyDown(mc.gameSettings.keyBindJump.getKeyCode());
+        return mc.gameSettings.keyBindJump.isKeyDown();
     }
 
     public static float gd() {
@@ -727,13 +750,13 @@ public class Utils {
     public static void setMouseButtonState(int mouseButton, boolean held) {
         MouseEvent m = new MouseEvent();
 
-        ObfuscationReflectionHelper.setPrivateValue(MouseEvent.class, m, mouseButton, "button");
-        ObfuscationReflectionHelper.setPrivateValue(MouseEvent.class, m, held, "buttonstate");
+        Reflection.set(m, "button", mouseButton);
+        Reflection.set(m, "buttonstate", held);
         MinecraftForge.EVENT_BUS.post(m);
 
-        ByteBuffer buttons = ObfuscationReflectionHelper.getPrivateValue(Mouse.class, null, "buttons");
+        ByteBuffer buttons = Reflection.get(Mouse.class, "buttons", ByteBuffer.class);
         buttons.put(mouseButton, (byte) (held ? 1 : 0));
-        ObfuscationReflectionHelper.setPrivateValue(Mouse.class, null, buttons, "buttons");
+        Reflection.set(Mouse.class, "buttons", buttons);
 
     }
 
@@ -985,6 +1008,7 @@ public class Utils {
     public static boolean isTargetNearby(double dist) {
         return mc.theWorld.playerEntities.stream()
                 .filter(target -> target != mc.thePlayer)
+                .filter(target -> target instanceof EntityPlayer)
                 .anyMatch(target -> new keystrokesmod.script.classes.Vec3(target).distanceTo(mc.thePlayer) < dist);
     }
 
@@ -998,10 +1022,31 @@ public class Utils {
     }
 
     public static boolean isLobby() {
-        if (Utils.isHypixel()) {
-            return mc.theWorld.loadedEntityList.parallelStream()
-                    .filter(e -> e instanceof EntityWither)
-                    .anyMatch(Entity::isInvisible);
+        if (mc.theWorld == null) {
+            return true;
+        }
+
+        List<Entity> entities = mc.theWorld.getLoadedEntityList();
+        for (Entity entity : entities) {
+            if (entity != null && entity.getName().equals("§e§lCLICK TO PLAY")) {
+                return true;
+            }
+        }
+
+        boolean hasNetherStar = false;
+        boolean hasCompass = false;
+        for (ItemStack stack : mc.thePlayer.inventory.mainInventory) {
+            if (stack != null) {
+                if (stack.getItem() == Items.nether_star) {
+                    hasNetherStar = true;
+                }
+                if (stack.getItem() == Items.compass) {
+                    hasCompass = true;
+                }
+                if (hasNetherStar && hasCompass) {
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -1050,10 +1095,8 @@ public class Utils {
     }
 
     public static void inventoryClick(@NotNull GuiScreen s) {
-        final ScaledResolution sr = new ScaledResolution(mc);
-
-        int x = Mouse.getX() * s.width / sr.getScaledWidth();
-        int y = s.height - Mouse.getY() * s.height / sr.getScaledHeight() - 1;
+        int x = Mouse.getX() * s.width / mc.displayWidth;
+        int y = s.height - Mouse.getY() * s.height / mc.displayHeight - 1;
 
         ClickEvent event = new ClickEvent();
         MinecraftForge.EVENT_BUS.post(event);

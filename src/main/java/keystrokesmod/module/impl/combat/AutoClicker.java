@@ -18,8 +18,6 @@ import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
-import java.util.List;
-
 public class AutoClicker extends IAutoClicker {
     private final ModeValue mode;
     private final ButtonSetting breakBlocks;
@@ -73,8 +71,6 @@ public class AutoClicker extends IAutoClicker {
 
     @Override
     public void onUpdate() {
-        ((MinecraftAccessor) mc).setLeftClickCounter(-1);
-
         if (!coolDown.hasFinished() && this.jitter.isToggled()) {
             mc.thePlayer.rotationYaw += (float) (((Math.random() - 0.5) * 400 / Minecraft.getDebugFPS()) * directionX);
             mc.thePlayer.rotationPitch += (float) (((Math.random() - 0.5) * 400 / Minecraft.getDebugFPS()) * directionY) * mc.gameSettings.mouseSensitivity * 2;

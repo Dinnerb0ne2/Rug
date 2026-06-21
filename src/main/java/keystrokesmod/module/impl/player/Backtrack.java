@@ -1,10 +1,5 @@
 package keystrokesmod.module.impl.player;
 
-import java.awt.*;
-import java.util.*;
-import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 import keystrokesmod.event.PreTickEvent;
 import keystrokesmod.event.PreUpdateEvent;
 import keystrokesmod.event.ReceivePacketEvent;
@@ -21,13 +16,18 @@ import keystrokesmod.utility.render.Animation;
 import keystrokesmod.utility.render.Easing;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.Packet;
-import net.minecraft.network.play.INetHandlerPlayClient;
 import net.minecraft.network.play.server.*;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Backtrack extends Module {
     public static final Color color = new Color(72, 125, 227);
@@ -83,9 +83,6 @@ public class Backtrack extends Module {
 
     @Override
     public void onDisable() {
-        if (mc.thePlayer == null)
-            return;
-
         releaseAll();
     }
 
@@ -108,7 +105,7 @@ public class Backtrack extends Module {
         while (!packetQueue.isEmpty()) {
             try {
                 if (packetQueue.element().getCold().getCum(currentLatency)) {
-                    Packet<INetHandlerPlayClient> packet = (Packet<INetHandlerPlayClient>) packetQueue.remove().getPacket();
+                    Packet<?> packet = packetQueue.remove().getPacket();
                     skipPackets.add(packet);
                     PacketUtils.receivePacket(packet);
                 } else {
@@ -131,9 +128,9 @@ public class Backtrack extends Module {
         final net.minecraft.util.Vec3 pos = currentLatency > 0 ? vec3.toVec3() : target.getPositionVector();
 
         if (animationX == null || animationY == null || animationZ == null) {
-            animationX = new Animation(Easing.EASE_OUT_CIRC, 50);
-            animationY = new Animation(Easing.EASE_OUT_CIRC, 50);
-            animationZ = new Animation(Easing.EASE_OUT_CIRC, 50);
+            animationX = new Animation(Easing.EASE_OUT_CIRC, 300);
+            animationY = new Animation(Easing.EASE_OUT_CIRC, 300);
+            animationZ = new Animation(Easing.EASE_OUT_CIRC, 300);
 
             animationX.setValue(pos.xCoord);
             animationY.setValue(pos.yCoord);
@@ -257,7 +254,7 @@ public class Backtrack extends Module {
     private void releaseAll() {
         if (!packetQueue.isEmpty()) {
             for (TimedPacket timedPacket : packetQueue) {
-                Packet<INetHandlerPlayClient> packet = (Packet<INetHandlerPlayClient>) timedPacket.getPacket();
+                Packet<?> packet = timedPacket.getPacket();
                 skipPackets.add(packet);
                 PacketUtils.receivePacket(packet);
             }

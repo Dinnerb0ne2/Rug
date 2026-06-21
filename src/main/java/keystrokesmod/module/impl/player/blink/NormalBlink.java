@@ -25,20 +25,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class NormalBlink extends SubMode<Module> {
+    public final ButtonSetting overlay;
+    public final List<Packet<?>> blinkedPackets = new ArrayList<>();
     private final ButtonSetting pulse;
     private final SliderSetting pulseDelay;
     private final ButtonSetting initialPosition;
-    private final ButtonSetting overlay;
-
-    public final List<Packet<?>> blinkedPackets = new ArrayList<>();
     private long startTime = -1;
     private Vec3 pos;
 
     public NormalBlink(String name, @NotNull Module parent) {
         super(name, parent);
-        this.registerSetting(pulse = new ButtonSetting("Pulse", false));
+        this.registerSetting(pulse = new ButtonSetting("Pulse", false, () -> parent instanceof Blink));
         this.registerSetting(pulseDelay = new SliderSetting("Pulse delay", 1000, 0, 10000, 100, pulse::isToggled));
-        this.registerSetting(initialPosition = new ButtonSetting("Show initial position", true));
+        this.registerSetting(initialPosition = new ButtonSetting("Show initial position", false));
         this.registerSetting(overlay = new ButtonSetting("Overlay", false));
     }
 
@@ -83,7 +82,7 @@ public class NormalBlink extends SubMode<Module> {
 
     @SubscribeEvent
     public void onSendPacket(SendPacketEvent e) {
-        if (!Utils.nullCheck()) {
+        if (!Utils.nullCheck() || mc.thePlayer.isDead) {
             this.disable();
             return;
         }

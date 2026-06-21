@@ -12,6 +12,7 @@ import keystrokesmod.utility.ContainerUtils;
 import keystrokesmod.utility.MoveUtil;
 import keystrokesmod.utility.PacketUtils;
 import keystrokesmod.utility.Utils;
+import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.IInventory;
@@ -21,44 +22,77 @@ import net.minecraft.network.play.client.C0DPacketCloseWindow;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class InvManager extends Module {
-    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Basic", "OpenInv", "Hypixel"}, 1);
+    // Mode settings
+    private final ModeSetting mode = new ModeSetting("Mode", new String[]{"Basic", "OpenInv", "Hypixel", "Ghost"}, 1);
     private final ButtonSetting notWhileMoving = new ButtonSetting("Not while moving", false, new ModeOnly(mode, 0));
-    private final SliderSetting minStartDelay = new SliderSetting("Min start delay", 100, 0, 500, 10, "ms");
-    private final SliderSetting maxStartDelay = new SliderSetting("Max start delay", 200, 0, 500, 10, "ms");
-    private final ButtonSetting armor = new ButtonSetting("Armor", false);
-    private final SliderSetting minArmorDelay = new SliderSetting("Min armor delay", 100, 0, 500, 10, "ms", armor::isToggled);
+    private final SliderSetting minStartDelay = new SliderSetting("Min start delay", 100, 0, 1000, 10, "ms");
+    private final SliderSetting maxStartDelay = new SliderSetting("Max start delay", 300, 0, 1000, 10, "ms");
+    
+    // Behavior settings
+    private final ButtonSetting autoEquipHotbar = new ButtonSetting("Auto-equip hotbar", true);
+    private final ButtonSetting equipBetterOnly = new ButtonSetting("Equip better only", true);
+    private final ButtonSetting randomizeTaskOrder = new ButtonSetting("Randomize task order", true);
+    private final SliderSetting humanizationFactor = new SliderSetting("Humanization", 50, 0, 100, 1, "%");
+    
+    // Armor settings
+    private final ButtonSetting armor = new ButtonSetting("Armor", true);
+    private final SliderSetting minArmorDelay = new SliderSetting("Min armor delay", 50, 0, 500, 10, "ms", armor::isToggled);
     private final SliderSetting maxArmorDelay = new SliderSetting("Max armor delay", 150, 0, 500, 10, "ms", armor::isToggled);
-    private final ButtonSetting clean = new ButtonSetting("Clean", false);
-    private final SliderSetting minCleanDelay = new SliderSetting("Min clean delay", 100, 0, 500, 10, "ms", clean::isToggled);
+    
+    // Clean settings
+    private final ButtonSetting clean = new ButtonSetting("Clean", true);
+    private final SliderSetting minCleanDelay = new SliderSetting("Min clean delay", 50, 0, 500, 10, "ms", clean::isToggled);
     private final SliderSetting maxCleanDelay = new SliderSetting("Max clean delay", 150, 0, 500, 10, "ms", clean::isToggled);
-    private final ButtonSetting sort = new ButtonSetting("Sort", false);
-    private final SliderSetting minSortDelay = new SliderSetting("Min sort delay", 100, 0, 500, 10, "ms", sort::isToggled);
-    private final SliderSetting maxSortDelay = new SliderSetting("Max sort delay", 100, 0, 500, 10, "ms", sort::isToggled);
+    private final ButtonSetting keepStackables = new ButtonSetting("Keep stackables", true, clean::isToggled);
+    private final SliderSetting minStackSize = new SliderSetting("Min stack size", 16, 1, 64, 1, clean::isToggled);
+    
+    // Sort settings
+    private final ButtonSetting sort = new ButtonSetting("Sort", true);
+    private final SliderSetting minSortDelay = new SliderSetting("Min sort delay", 50, 0, 500, 10, "ms", sort::isToggled);
+    private final SliderSetting maxSortDelay = new SliderSetting("Max sort delay", 150, 0, 500, 10, "ms", sort::isToggled);
     private final SliderSetting swordSlot = new SliderSetting("Sword slot", 1, 0, 9, 1, sort::isToggled);
     private final SliderSetting blockSlot = new SliderSetting("Block slot", 2, 0, 9, 1, sort::isToggled);
     private final SliderSetting enderPearlSlot = new SliderSetting("Ender pearl slot", 3, 0, 9, 1, sort::isToggled);
     private final SliderSetting bowSlot = new SliderSetting("Bow slot", 4, 0, 9, 1, sort::isToggled);
     private final SliderSetting foodSlot = new SliderSetting("Food slot", 5, 0, 9, 1, sort::isToggled);
     private final SliderSetting throwableSlot = new SliderSetting("Throwable slot", 6, 0, 9, 1, sort::isToggled);
-    private final SliderSetting rodSlot = new SliderSetting("Rod slot", 8, 0, 9, 1, sort::isToggled);
-    private final ButtonSetting shuffle = new ButtonSetting("Shuffle", false, () -> armor.isToggled() || clean.isToggled() || sort.isToggled());
-
+    private final SliderSetting rodSlot = new SliderSetting("Rod slot", 7, 0, 9, 1, sort::isToggled);
+    private final SliderSetting potionSlot = new SliderSetting("Potion slot", 8, 0, 9, 1, sort::isToggled);
+    
+    // Advanced settings
+    private final ButtonSetting shuffle = new ButtonSetting("Shuffle", true, () -> armor.isToggled() || clean.isToggled() || sort.isToggled());
+    private final ButtonSetting chestStealerIntegration = new ButtonSetting("ChestStealer integration", true);
+    private final ButtonSetting silentMode = new ButtonSetting("Silent mode", false);
+    private final SliderSetting actionTimeout = new SliderSetting("Action timeout", 5000, 1000, 10000, 100, "ms");
+    
     private State state = State.NONE;
     private long nextTaskTime;
     private boolean invOpen = false;
+    private long lastActionTime = 0;
+    private final Random random = new Random();
+    private final AtomicBoolean isProcessing = new AtomicBoolean(false);
+    private List<Runnable> currentTasks = new ArrayList<>();
+    private int currentTaskIndex = 0;
 
     public InvManager() {
         super("InvManager", category.player);
         this.registerSetting(
                 mode, notWhileMoving, minStartDelay, maxStartDelay,
+                autoEquipHotbar, equipBetterOnly, randomizeTaskOrder, humanizationFactor,
                 armor, minArmorDelay, maxArmorDelay,
-                clean, minCleanDelay, maxCleanDelay,
-                sort, minSortDelay, maxSortDelay, swordSlot, blockSlot, enderPearlSlot, bowSlot, foodSlot, throwableSlot, rodSlot,
-                shuffle
+                clean, minCleanDelay, maxCleanDelay, keepStackables, minStackSize,
+                sort, minSortDelay, maxSortDelay, 
+                swordSlot, blockSlot, enderPearlSlot, bowSlot, foodSlot, 
+                throwableSlot, rodSlot, potionSlot,
+                shuffle, chestStealerIntegration, silentMode, actionTimeout
         );
     }
 
@@ -72,37 +106,67 @@ public class InvManager extends Module {
 
     @Override
     public void onDisable() {
-        if (invOpen && mode.getInput() == 0) {
+        if (invOpen && (mode.getInput() == 0 || mode.getInput() == 3)) {
             PacketUtils.sendPacket(new C0DPacketCloseWindow());
         }
         state = State.NONE;
         invOpen = false;
+        isProcessing.set(false);
+        currentTasks.clear();
     }
 
     @Override
     public void onUpdate() {
+        // Check if we're timing out
+        if (System.currentTimeMillis() - lastActionTime > actionTimeout.getInput()) {
+            state = State.NONE;
+            isProcessing.set(false);
+            currentTasks.clear();
+        }
+        
+        // Check if we should be processing
+        if (isProcessing.get()) return;
+        
+        // Determine if inventory is open based on mode
         switch ((int) mode.getInput()) {
-            case 0:
-                invOpen = !(notWhileMoving.isToggled() && MoveUtil.isMoving());
+            case 0: // Basic
+                invOpen = !(notWhileMoving.isToggled() && MoveUtil.isMoving()) && 
+                         !(mc.currentScreen instanceof GuiChest) &&
+                         !(chestStealerIntegration.isToggled() && Raven.chestStealer.isEnabled());
                 break;
-            case 1:
+            case 1: // OpenInv
                 invOpen = mc.currentScreen instanceof GuiInventory;
                 break;
-            case 2:
-                invOpen = true;
+            case 2: // Hypixel
+                invOpen = !(mc.currentScreen instanceof GuiChest) &&
+                         !(chestStealerIntegration.isToggled() && Raven.chestStealer.isEnabled());
+                break;
+            case 3: // Ghost
+                invOpen = true; // Always process but silently
                 break;
         }
 
+        // Handle auto-equip from hotbar when inventory is closed
+        if (!invOpen && autoEquipHotbar.isToggled()) {
+            handleHotbarEquip();
+        }
+
+        // Start processing if inventory is open
         if (invOpen) {
             if (state == State.NONE) {
                 state = State.BEFORE;
-                int delay = Utils.randomizeInt(minStartDelay.getInput(), maxStartDelay.getInput());
-                nextTaskTime = System.currentTimeMillis();
+                int delay = getRandomizedDelay(minStartDelay, maxStartDelay);
+                nextTaskTime = System.currentTimeMillis() + delay;
+                
                 if (delay == 0) {
+                    prepareTasks();
                     state = State.TASKING;
                 } else {
                     Raven.getExecutor().schedule(
-                            () -> state = State.TASKING,
+                            () -> {
+                                prepareTasks();
+                                state = State.TASKING;
+                            },
                             delay,
                             TimeUnit.MILLISECONDS
                     );
@@ -113,70 +177,168 @@ public class InvManager extends Module {
         }
     }
 
+    private void handleHotbarEquip() {
+        // Only equip from hotbar when not in GUI
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = mc.thePlayer.inventory.getStackInSlot(i);
+            if (stack == null) continue;
+            
+            // Check if item is armor
+            int armorType = ContainerUtils.getArmorType(stack);
+            if (armorType != -1) {
+                int currentArmorSlot = armorType + 5;
+                ItemStack currentArmor = ContainerUtils.getItemStack(currentArmorSlot);
+                
+                // Check if we should equip it
+                boolean shouldEquip = true;
+                if (equipBetterOnly.isToggled() && currentArmor != null) {
+                    shouldEquip = ContainerUtils.isBetterArmor(stack, currentArmor, armorType);
+                }
+                
+                if (shouldEquip) {
+                    // Equip the armor
+                    if (silentMode.isToggled()) {
+                        ContainerUtils.silentSwap(i, currentArmorSlot);
+                    } else {
+                        mc.playerController.windowClick(mc.thePlayer.inventoryContainer.windowId, 
+                                i < 9 ? i + 36 : i, 0, 0, mc.thePlayer);
+                        mc.playerController.windowClick(mc.thePlayer.inventoryContainer.windowId, 
+                                currentArmorSlot, 0, 0, mc.thePlayer);
+                        if (currentArmor != null) {
+                            mc.playerController.windowClick(mc.thePlayer.inventoryContainer.windowId, 
+                                    i < 9 ? i + 36 : i, 0, 0, mc.thePlayer);
+                        }
+                    }
+                    lastActionTime = System.currentTimeMillis();
+                    return; // Only equip one item per tick
+                }
+            }
+        }
+    }
+
+    private void prepareTasks() {
+        currentTasks.clear();
+        
+        // Add armor tasks if enabled
+        if (armor.isToggled()) {
+            currentTasks.add(this::processArmor);
+        }
+        
+        // Add clean tasks if enabled
+        if (clean.isToggled()) {
+            currentTasks.add(this::processClean);
+        }
+        
+        // Add sort tasks if enabled
+        if (sort.isToggled()) {
+            currentTasks.addAll(getSortTasks());
+        }
+        
+        // Randomize task order if enabled
+        if (randomizeTaskOrder.isToggled()) {
+            Collections.shuffle(currentTasks);
+        }
+        
+        currentTaskIndex = 0;
+        isProcessing.set(true);
+    }
+
     @SubscribeEvent
     public void onPreMotion(PreMotionEvent event) {
-        if (state != State.TASKING) return;
+        if (state != State.TASKING || !isProcessing.get() || currentTasks.isEmpty()) return;
+        
+        // Apply humanization delay
+        if (shouldHumanize()) {
+            return;
+        }
+        
+        // Execute current task
+        if (currentTaskIndex < currentTasks.size()) {
+            currentTasks.get(currentTaskIndex).run();
+            currentTaskIndex++;
+            lastActionTime = System.currentTimeMillis();
+            
+            // Check if we've completed all tasks
+            if (currentTaskIndex >= currentTasks.size()) {
+                isProcessing.set(false);
+                state = State.NONE;
+            }
+        }
+    }
 
-        armor:
-        while (armor.isToggled() && System.currentTimeMillis() >= nextTaskTime) {
-            final IInventory inventory = mc.thePlayer.inventory;
+    private boolean shouldHumanize() {
+        if (humanizationFactor.getInput() == 0) return false;
+        
+        // Random chance to skip a tick based on humanization factor
+        if (random.nextInt(100) < humanizationFactor.getInput()) {
+            // Random additional delay (0-50ms)
+            try {
+                Thread.sleep(random.nextInt(50));
+            } catch (InterruptedException ignored) {}
+            return true;
+        }
+        return false;
+    }
 
-            List<Integer> armorTypes = new ArrayList<>(ContainerUtils.ARMOR_TYPES);
+    private void processArmor() {
+        List<Integer> armorTypes = new ArrayList<>(ContainerUtils.ARMOR_TYPES);
+        if (shuffle.isToggled()) Collections.shuffle(armorTypes);
 
-            if (shuffle.isToggled())
-                Collections.shuffle(armorTypes);
-
-            for (int i : armorTypes) {
-                final int curArmorSlot = i + 5;
-                final int bestArmorSlot = ContainerUtils.getBestArmor(i, null);
-                if (bestArmorSlot != -1 && bestArmorSlot != curArmorSlot) {
-                    if (ContainerUtils.getItemStack(curArmorSlot) != null) {
+        for (int i : armorTypes) {
+            final int curArmorSlot = i + 5;
+            final int bestArmorSlot = ContainerUtils.getBestArmor(i, null);
+            
+            if (bestArmorSlot != -1 && bestArmorSlot != curArmorSlot) {
+                if (ContainerUtils.getItemStack(curArmorSlot) != null) {
+                    if (silentMode.isToggled()) {
+                        ContainerUtils.silentDrop(curArmorSlot);
+                    } else {
                         ContainerUtils.drop(curArmorSlot);
+                    }
+                } else {
+                    if (silentMode.isToggled()) {
+                        ContainerUtils.silentClick(bestArmorSlot);
                     } else {
                         ContainerUtils.click(bestArmorSlot);
                     }
-                    if (mode.getInput() == 2)
-                        MoveUtil.stop();
-                    nextTaskTime = System.currentTimeMillis() + Utils.randomizeInt(minArmorDelay.getInput(), maxArmorDelay.getInput());
-                    continue armor;
                 }
+                
+                if (mode.getInput() == 2) MoveUtil.stop();
+                nextTaskTime = System.currentTimeMillis() + getRandomizedDelay(minArmorDelay, maxArmorDelay);
+                return;
             }
-            break;
         }
+    }
 
-        clean:
-        while (clean.isToggled() && System.currentTimeMillis() >= nextTaskTime) {
-            final IInventory inventory = mc.thePlayer.inventory;
+    private void processClean() {
+        final IInventory inventory = mc.thePlayer.inventory;
+        final List<Pair<Integer, ItemStack>> slots = getDropSlots(inventory);
 
-            final List<Pair<Integer, ItemStack>> slots = getDropSlots(inventory);
-
-            if (!slots.isEmpty()) {
-                for (Pair<Integer, ItemStack> slot : slots) {
+        if (!slots.isEmpty()) {
+            for (Pair<Integer, ItemStack> slot : slots) {
+                if (silentMode.isToggled()) {
+                    ContainerUtils.silentDrop(slot.first());
+                } else {
                     ContainerUtils.drop(slot.first());
-                    if (mode.getInput() == 2)
-                        MoveUtil.stop();
-                    nextTaskTime = System.currentTimeMillis() + Utils.randomizeInt(minCleanDelay.getInput(), maxCleanDelay.getInput());
-                    continue clean;
                 }
-            }
-            break;
-        }
-
-        // sort
-        if (sort.isToggled()) {
-            for (Runnable task : getSortTasks()) {
-                task.run();
-                if (System.currentTimeMillis() < nextTaskTime) break;
+                
+                if (mode.getInput() == 2) MoveUtil.stop();
+                nextTaskTime = System.currentTimeMillis() + getRandomizedDelay(minCleanDelay, maxCleanDelay);
+                return;
             }
         }
     }
 
     private void sort(int from, int to) {
         if (to == 0 || from == -1 || to == -1 || from == to) return;
-        if (ContainerUtils.sort(from, to)) {
-            if (mode.getInput() == 2)
-                MoveUtil.stop();
-            nextTaskTime = System.currentTimeMillis() + Utils.randomizeInt(minSortDelay.getInput(), maxSortDelay.getInput());
+        
+        boolean success = silentMode.isToggled() ? 
+                ContainerUtils.silentSort(from, to) : 
+                ContainerUtils.sort(from, to);
+                
+        if (success) {
+            if (mode.getInput() == 2) MoveUtil.stop();
+            nextTaskTime = System.currentTimeMillis() + getRandomizedDelay(minSortDelay, maxSortDelay);
         }
     }
 
@@ -185,16 +347,18 @@ public class InvManager extends Module {
 
         for (int i = 5; i < 45; i++) {
             final ItemStack stack = ContainerUtils.getItemStack(i);
-            if (stack == null || stack.getItem() instanceof ItemEmptyMap)
+            if (stack == null || stack.getItem() instanceof ItemEmptyMap) continue;
+            
+            // Skip stackable items if configured
+            if (keepStackables.isToggled() && stack.isStackable() && stack.stackSize >= minStackSize.getInput()) {
                 continue;
-            if (!ContainerUtils.canDrop(stack, i, null))
-                continue;
+            }
+            
+            if (!ContainerUtils.canDrop(stack, i, null)) continue;
             result.add(new Pair<>(i, stack));
         }
 
-        if (shuffle.isToggled())
-            Collections.shuffle(result);
-
+        if (shuffle.isToggled()) Collections.shuffle(result);
         return result;
     }
 
@@ -208,18 +372,35 @@ public class InvManager extends Module {
         result.add(() -> sort(ContainerUtils.getBestFood((int) foodSlot.getInput()), (int) foodSlot.getInput()));
         result.add(() -> sort(ContainerUtils.getMostProjectiles((int) throwableSlot.getInput()), (int) throwableSlot.getInput()));
         result.add(() -> sort(ContainerUtils.getBestRod(null), (int) rodSlot.getInput()));
+        result.add(() -> sort(ContainerUtils.getBiggestStack(Items.potionitem, (int) potionSlot.getInput()), (int) potionSlot.getInput()));
 
         return result;
+    }
+
+    private int getRandomizedDelay(SliderSetting min, SliderSetting max) {
+        int minVal = (int) min.getInput();
+        int maxVal = (int) max.getInput();
+        
+        if (minVal == maxVal) return minVal;
+        
+        // Apply humanization factor to the delay
+        double factor = humanizationFactor.getInput() / 100.0;
+        int range = maxVal - minVal;
+        int baseDelay = minVal + random.nextInt(range + 1);
+        
+        // Add some randomness
+        int variation = (int) (range * 0.2 * factor);
+        return baseDelay + random.nextInt(variation * 2 + 1) - variation;
+    }
+
+    @Override
+    public String getInfo() {
+        return mode.getOptions()[(int) mode.getInput()];
     }
 
     enum State {
         NONE,
         BEFORE,
         TASKING
-    }
-
-    @Override
-    public String getInfo() {
-        return mode.getOptions()[(int) mode.getInput()];
     }
 }

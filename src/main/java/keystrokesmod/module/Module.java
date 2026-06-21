@@ -6,7 +6,6 @@ import keystrokesmod.module.impl.client.Notifications;
 import keystrokesmod.module.impl.client.Settings;
 import keystrokesmod.module.setting.Setting;
 import keystrokesmod.module.setting.impl.ButtonSetting;
-import keystrokesmod.module.setting.impl.ModeValue;
 import keystrokesmod.module.setting.impl.SubMode;
 import keystrokesmod.script.Script;
 import keystrokesmod.utility.Utils;
@@ -14,41 +13,40 @@ import keystrokesmod.utility.i18n.I18nModule;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.common.MinecraftForge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import scala.reflect.internal.util.WeakHashSet;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
 
 public class Module {
-    @Getter
-    @Setter
-    private @Nullable I18nModule i18nObject = null;
-
+    protected static Minecraft mc;
     @Getter
     protected final ArrayList<Setting> settings;
+    private final WeakHashSet<Setting> settingsWeak;
     private final String moduleName;
-    private String prettyName;
-    private String prettyInfo = "";
     private final Module.category moduleCategory;
-    @Getter
-    @Setter
-    private boolean enabled;
-    @Getter
-    private int keycode;
     private final @Nullable String toolTip;
-    protected static Minecraft mc;
-    private boolean isToggled = false;
     public boolean canBeEnabled = true;
     public boolean ignoreOnSave = false;
     @Setter
     @Getter
     public boolean hidden = false;
     public Script script = null;
+    @Getter
+    @Setter
+    private @Nullable I18nModule i18nObject = null;
+    private String prettyName;
+    private String prettyInfo = "";
+    @Getter
+    @Setter
+    private boolean enabled;
+    @Getter
+    private int keycode;
+    private boolean isToggled = false;
 
     public Module(String moduleName, Module.category moduleCategory, int keycode) {
         this(moduleName, moduleCategory, keycode, null);
@@ -63,23 +61,9 @@ public class Module {
         this.enabled = false;
         mc = Minecraft.getMinecraft();
         this.settings = new ArrayList<>();
+        this.settingsWeak = new WeakHashSet<>();
         if (!(this instanceof SubMode))
             Raven.moduleCounter++;
-    }
-
-    public static @Nullable Module getModule(Class<? extends Module> a) {
-        Iterator<Module> var1 = ModuleManager.modules.iterator();
-
-        Module module;
-        do {
-            if (!var1.hasNext()) {
-                return null;
-            }
-
-            module = var1.next();
-        } while (module.getClass() != a);
-
-        return module;
     }
 
     public Module(String name, Module.category moduleCategory) {
@@ -104,8 +88,7 @@ public class Module {
                 } else if ((this.keycode >= 1000 ? !Mouse.isButtonDown(this.keycode - 1000) : !Keyboard.isKeyDown(this.keycode))) {
                     this.isToggled = false;
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
                 Utils.sendMessage("&cFailed to check keybinding. Setting to none");
                 this.keycode = 0;
@@ -132,10 +115,9 @@ public class Module {
 
         if (this.script != null) {
             Raven.scriptManager.onEnable(script);
-        }
-        else {
+        } else {
             try {
-                FMLCommonHandler.instance().bus().register(this);
+                MinecraftForge.EVENT_BUS.register(this);
                 this.onEnable();
             } catch (Throwable ignored) {
             }
@@ -150,10 +132,9 @@ public class Module {
         ModuleManager.organizedModules.remove(this);
         if (this.script != null) {
             Raven.scriptManager.onDisable(script);
-        }
-        else {
+        } else {
             try {
-                FMLCommonHandler.instance().bus().unregister(this);
+                MinecraftForge.EVENT_BUS.unregister(this);
                 this.onDisable();
             } catch (Throwable ignored) {
             }
@@ -170,6 +151,11 @@ public class Module {
                 : getInfo();
     }
 
+    public final void setPrettyInfo(String name) {
+        this.prettyInfo = name;
+        ModuleManager.sort();
+    }
+
     public String getName() {
         return this.moduleName;
     }
@@ -178,6 +164,11 @@ public class Module {
         return ModuleManager.customName.isEnabled()
                 ? getRawPrettyName()
                 : i18nObject != null ? i18nObject.getName() : getName();
+    }
+
+    public final void setPrettyName(String name) {
+        this.prettyName = name;
+        ModuleManager.sort();
     }
 
     public @Nullable String getToolTip() {
@@ -196,27 +187,14 @@ public class Module {
         return prettyInfo.isEmpty() ? getInfo() : prettyInfo;
     }
 
-    public final void setPrettyName(String name) {
-        this.prettyName = name;
-        ModuleManager.sort();
-    }
-
-    public final void setPrettyInfo(String name) {
-        this.prettyInfo = name;
-        ModuleManager.sort();
-    }
-
     public void registerSetting(Setting setting) {
         synchronized (settings) {
-            if (settings.contains(setting))
+            if (settingsWeak.contains(setting))
                 throw new RuntimeException("Setting '" + setting.getName() + "' is already registered in module '" + this.getName() + "'!");
 
+            this.settingsWeak.add(setting);
+            this.settings.add(setting);
             setting.setParent(this);
-            if (setting instanceof ModeValue) {
-                this.settings.add(0, setting);
-            } else {
-                this.settings.add(setting);
-            }
         }
     }
 
@@ -235,6 +213,7 @@ public class Module {
     public void unregisterSetting(@NotNull Setting setting) {
         synchronized (settings) {
             this.settings.remove(setting);
+            this.settingsWeak.remove(setting);
         }
     }
 
@@ -275,7 +254,6 @@ public class Module {
     public void setBind(int keybind) {
         this.keycode = keybind;
     }
-
 
     public enum category {
         combat,

@@ -1,6 +1,7 @@
 package keystrokesmod.module.impl.player;
 
 import keystrokesmod.module.Module;
+import keystrokesmod.module.ModuleManager;
 import keystrokesmod.module.impl.player.blink.FakeLagBlink;
 import keystrokesmod.module.impl.player.blink.NormalBlink;
 import keystrokesmod.module.setting.impl.ModeValue;
@@ -14,8 +15,8 @@ import org.lwjgl.opengl.GL11;
 import java.awt.*;
 
 public class Blink extends Module {
-    private final ModeValue mode;
     public static final int color = new Color(255, 255, 255, 200).getRGB();
+    private final ModeValue mode;
 
     public Blink() {
         super("Blink", category.player);
@@ -25,19 +26,15 @@ public class Blink extends Module {
         );
     }
 
-    @Override
-    public void onEnable() throws Throwable {
-        mode.enable();
-    }
-
-    @Override
-    public void onDisable() throws Throwable {
-        mode.disable();
-    }
-
-    @Override
-    public String getInfo() {
-        return mode.getSelected().getInfo();
+    public static boolean isBlinking() {
+        if (ModuleManager.blink == null) return false;
+        if (ModuleManager.blink.isEnabled()) return true;
+        if (ModuleManager.blink.mode.getSelected() instanceof FakeLagBlink) {
+            if (ModuleManager.blink.mode.getSelected().isEnabled())
+                return true;
+            return ((FakeLagBlink) ModuleManager.blink.mode.getSelected()).needToDisable;
+        }
+        return false;
     }
 
     public static void drawBox(@NotNull Vec3 pos) {
@@ -64,6 +61,21 @@ public class Blink extends Module {
         GL11.glDepthMask(true);
         GL11.glDisable(3042);
         GlStateManager.popMatrix();
+    }
+
+    @Override
+    public void onEnable() throws Throwable {
+        mode.enable();
+    }
+
+    @Override
+    public void onDisable() throws Throwable {
+        mode.disable();
+    }
+
+    @Override
+    public String getInfo() {
+        return mode.getSelected().getInfo();
     }
 }
 
