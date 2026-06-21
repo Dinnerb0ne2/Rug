@@ -42,3 +42,9 @@ run/
 
 # bakups
 *.bak.rug
+
+# scripts
+rr.py
+
+# other 
+REFACTOR_REPORT.md
