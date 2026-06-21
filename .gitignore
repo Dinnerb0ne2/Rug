@@ -39,3 +39,6 @@ remapped deobf/
 
 # Minecraft folder
 run/
+
+# bakups
+*.bak.rug

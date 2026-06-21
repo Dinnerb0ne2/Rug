@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 @Mixin(value = Minecraft.class, priority = 1001)
 public abstract class MixinMinecraft {
@@ -101,7 +101,7 @@ public abstract class MixinMinecraft {
 
     @Inject(method = "createDisplay", at = @At(value = "RETURN"))
     private void onSetTitle(@NotNull CallbackInfo ci) {
-        Display.setTitle("Raven XD " + Watermark.VERSION);
+        Display.setTitle("Rug XD " + Watermark.VERSION);
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))

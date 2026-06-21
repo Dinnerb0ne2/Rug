@@ -1,6 +1,6 @@
 package keystrokesmod.utility.clicks;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.impl.client.Settings;
 import keystrokesmod.module.impl.world.AntiBot;
 import keystrokesmod.utility.Utils;
@@ -26,7 +26,7 @@ public class CPSCalculator {
         if (d.buttonstate) {
             if (d.button == 0) {
                 aL();
-                if (Raven.debugger && mc.objectMouseOver != null) {
+                if (Rug.debugger && mc.objectMouseOver != null) {
                     Entity en = mc.objectMouseOver.entityHit;
                     if (en == null) {
                         return;

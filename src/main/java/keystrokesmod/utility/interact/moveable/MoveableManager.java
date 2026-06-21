@@ -11,7 +11,7 @@ import org.lwjgl.input.Mouse;
 import java.awt.*;
 import java.util.Set;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 public class MoveableManager {
     private static final int BACKGROUND_COLOR = new Color(0, 0, 0, 80).getRGB();

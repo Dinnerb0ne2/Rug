@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.fun;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.ReceivePacketEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -36,7 +36,7 @@ public class HitLog extends Module {
         if (System.currentTimeMillis() - lastAttack < coolDown.getInput()) return;
         lastAttack = System.currentTimeMillis();
 
-        Raven.getExecutor().schedule(() -> {
+        Rug.getExecutor().schedule(() -> {
             HitPos hitPos = HitPos.fromY(predHitPos.y(), target);
 
             if (target.hurtTime == 0) {

@@ -1,6 +1,6 @@
 package keystrokesmod.mixins.impl.world;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.BlockAABBEvent;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -30,7 +30,7 @@ public abstract class MixinBlock {
     @Inject(method = "addCollisionBoxesToList", at = @At("HEAD"), cancellable = true)
     public void onAddCollisionBoxesToList(World worldIn, BlockPos pos, IBlockState state, AxisAlignedBB mask, List<AxisAlignedBB> list,
                                         Entity collidingEntity, CallbackInfo ci) {
-        if (collidingEntity == Raven.mc.thePlayer) {
+        if (collidingEntity == Rug.mc.thePlayer) {
             ci.cancel();
 
             final AxisAlignedBB axisalignedbb = this.getCollisionBoundingBox(worldIn, pos, state);

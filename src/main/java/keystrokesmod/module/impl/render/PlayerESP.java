@@ -1,7 +1,7 @@
 package keystrokesmod.module.impl.render;
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
 import keystrokesmod.module.impl.world.AntiBot;
@@ -81,7 +81,7 @@ public class PlayerESP extends Module {
 
         targets.clear();
         if (Utils.nullCheck()) {
-            if (Raven.debugger) {
+            if (Rug.debugger) {
                 mc.theWorld.loadedEntityList.parallelStream()
                         .filter(entity -> entity instanceof EntityLivingBase && entity != mc.thePlayer)
                         .forEach(entity -> {

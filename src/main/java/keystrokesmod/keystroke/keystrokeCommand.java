@@ -1,6 +1,6 @@
 package keystrokesmod.keystroke;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 
@@ -10,7 +10,7 @@ public class keystrokeCommand extends CommandBase {
     }
 
     public void processCommand(ICommandSender sender, String[] args) {
-        Raven.toggleKeyStrokeConfigGui();
+        Rug.toggleKeyStrokeConfigGui();
     }
 
     public String getCommandUsage(ICommandSender sender) {

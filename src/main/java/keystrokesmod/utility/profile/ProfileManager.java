@@ -1,7 +1,7 @@
 package keystrokesmod.utility.profile;
 
 import com.google.gson.*;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.ClickGui;
 import keystrokesmod.clickgui.components.impl.CategoryComponent;
 import keystrokesmod.event.WorldChangeEvent;
@@ -50,7 +50,7 @@ public class ProfileManager {
             saveProfile(new Profile("default", 0));
         }
 
-        Raven.getExecutor().schedule(this::updateLatest, 5, TimeUnit.MINUTES);
+        Rug.getExecutor().schedule(this::updateLatest, 5, TimeUnit.MINUTES);
     }
 
     @SubscribeEvent
@@ -68,15 +68,15 @@ public class ProfileManager {
         jsonObject.addProperty("killmessage", KillMessage.killMessage);
         jsonObject.addProperty("keybind", keyBind);
         JsonArray jsonArray = new JsonArray();
-        for (Module module : Raven.moduleManager.getModules()) {
+        for (Module module : Rug.moduleManager.getModules()) {
             if (module.ignoreOnSave) {
                 continue;
             }
             JsonObject moduleInformation = getJsonObject(module);
             jsonArray.add(moduleInformation);
         }
-        if (Raven.scriptManager != null && Raven.scriptManager.scripts != null) {
-            for (Module module : Raven.scriptManager.scripts.values()) {
+        if (Rug.scriptManager != null && Rug.scriptManager.scripts != null) {
+            for (Module module : Rug.scriptManager.scripts.values()) {
                 if (module.ignoreOnSave) {
                     continue;
                 }
@@ -172,15 +172,15 @@ public class ProfileManager {
             if (!file.getName().equals(name + ".json")) {
                 continue;
             }
-            if (Raven.scriptManager != null) {
-                for (Module module : Raven.scriptManager.scripts.values()) {
+            if (Rug.scriptManager != null) {
+                for (Module module : Rug.scriptManager.scripts.values()) {
                     if (module.canBeEnabled()) {
                         module.disable();
                         module.setBind(0);
                     }
                 }
             }
-            for (Module module : Raven.getModuleManager().getModules()) {
+            for (Module module : Rug.getModuleManager().getModules()) {
                 if (module.canBeEnabled()) {
                     module.disable();
                     module.setBind(0);
@@ -224,9 +224,9 @@ public class ProfileManager {
                         continue;
                     }
 
-                    Module module = Raven.moduleManager.getModule(moduleName);
-                    if (module == null && moduleName.startsWith("sc-") && Raven.scriptManager != null) {
-                        for (Module module1 : Raven.scriptManager.scripts.values()) {
+                    Module module = Rug.moduleManager.getModule(moduleName);
+                    if (module == null && moduleName.startsWith("sc-") && Rug.scriptManager != null) {
+                        for (Module module1 : Rug.scriptManager.scripts.values()) {
                             if (module1.getName().equals(moduleName.substring(3))) {
                                 module = module1;
                             }
@@ -239,7 +239,7 @@ public class ProfileManager {
 
                     loadFromJsonObject(moduleInformation, module);
 
-                    Raven.currentProfile = getProfile(name);
+                    Rug.currentProfile = getProfile(name);
                 }
 
                 if (!Objects.equals(name, "latest")) {
@@ -385,7 +385,7 @@ public class ProfileManager {
                     categoryComponent.reloadModules(true);
                 }
             }
-            Utils.sendMessage("&b" + Raven.profileManager.getProfileFiles().size() + " &7profiles loaded.");
+            Utils.sendMessage("&b" + Rug.profileManager.getProfileFiles().size() + " &7profiles loaded.");
         }
     }
 

@@ -13,11 +13,11 @@ public class DiscordRpc extends Module {
     public DiscordRpc() {
         super("DiscordRPC", category.client);
         this.registerSetting(mode = new ModeValue("Mode", this)
-                .add(new RavenXdRPC("RavenXD", this))
+                .add(new RavenXdRPC("Rug", this))
                 .add(new LunarClientRPC("Lunar Client", this))
                 .add(new AugustusRPC("Augustus", this))
                 .add(new BadlionRPC("Badlion Client", this))
-                .setDefaultValue("RavenXD"));
+                .setDefaultValue("Rug"));
     }
 
     public void onEnable() {

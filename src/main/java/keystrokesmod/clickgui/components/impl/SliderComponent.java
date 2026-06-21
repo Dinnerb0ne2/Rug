@@ -1,6 +1,6 @@
 package keystrokesmod.clickgui.components.impl;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.components.Component;
 import keystrokesmod.module.ModuleManager;
 import keystrokesmod.module.impl.client.Gui;
@@ -88,8 +88,8 @@ public class SliderComponent extends Component {
                 }
                 parent.categoryComponent.render();
             }
-            if (Raven.currentProfile != null) {
-                ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+            if (Rug.currentProfile != null) {
+                ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
             }
         }
 

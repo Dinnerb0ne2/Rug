@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.other;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.WorldChangeEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.other.anticheats.PlayerManager;
@@ -72,7 +72,7 @@ public class Anticheat extends Module {
     }
 
     public void onUpdate() {
-        manager.update(Raven.mc);
+        manager.update(Rug.mc);
     }
 
     @SubscribeEvent

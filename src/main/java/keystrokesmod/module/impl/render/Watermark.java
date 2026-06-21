@@ -1,7 +1,7 @@
 package keystrokesmod.module.impl.render;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.player.ChestStealer;
 import keystrokesmod.module.setting.impl.ButtonSetting;
@@ -62,7 +62,7 @@ public class Watermark extends Module {
         this.registerSetting(shadow = new ButtonSetting("Shadow", true, textMode));
 
         for (String s : Arrays.asList("default", "enders")) {
-            try (InputStream stream = Objects.requireNonNull(Raven.class.getResourceAsStream("/assets/keystrokesmod/textures/watermarks/" + s + ".png"))) {
+            try (InputStream stream = Objects.requireNonNull(Rug.class.getResourceAsStream("/assets/keystrokesmod/textures/watermarks/" + s + ".png"))) {
                 BufferedImage image = ImageIO.read(stream);
                 WATERMARK.put(s, Minecraft.getMinecraft().renderEngine.getDynamicTextureLocation(s, new DynamicTexture(image)));
             } catch (NullPointerException | IOException ignored) {

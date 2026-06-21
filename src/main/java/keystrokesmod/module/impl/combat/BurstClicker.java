@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.combat;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.other.SlotHandler;
 import keystrokesmod.module.setting.impl.ButtonSetting;
@@ -30,7 +30,7 @@ public class BurstClicker extends Module {
 
     public void onEnable() {
         if (clicks.getInput() != 0.0D && mc.currentScreen == null && mc.inGameHasFocus) {
-            Raven.getExecutor().execute(() -> {
+            Rug.getExecutor().execute(() -> {
                 try {
                     int cl = (int) clicks.getInput();
                     int del = (int) delay.getInput();

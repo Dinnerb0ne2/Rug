@@ -1,7 +1,7 @@
 package keystrokesmod.script;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.ClickGui;
 import keystrokesmod.module.Module;
 import keystrokesmod.script.classes.Entity;
@@ -31,7 +31,7 @@ public class ScriptManager {
     public String b = ((String[])ScriptManager.class.getProtectionDomain().getCodeSource().getLocation().getPath().split("\\.jar!"))[0].substring(5) + ".jar";
 
     public ScriptManager() {
-        directory = new File(Raven.mc.mcDataDir + File.separator + "keystrokes", "scripts");
+        directory = new File(Rug.mc.mcDataDir + File.separator + "keystrokes", "scripts");
     }
 
     public void onEnable(Script dv) {
@@ -124,8 +124,8 @@ public class ScriptManager {
         script.createScript(string);
         script.run();
         Module module = new Module(script);
-        Raven.scriptManager.scripts.put(script, module);
-        Raven.scriptManager.invoke("onLoad", module);
+        Rug.scriptManager.scripts.put(script, module);
+        Rug.scriptManager.invoke("onLoad", module);
     }
 
     public void onDisable(Script script) {

@@ -1,7 +1,7 @@
 package keystrokesmod.mixins.impl.world;
 
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.BlockWebEvent;
 import keystrokesmod.utility.Utils;
 import net.minecraft.block.BlockWeb;
@@ -20,7 +20,7 @@ public class MixinBlockWeb {
 
     @Inject(method = "onEntityCollidedWithBlock", at = @At("HEAD"), cancellable = true)
     public void onEntityCollidedWithBlock(World world, BlockPos blockPos, IBlockState state, Entity entity, CallbackInfo ci) {
-        if (Utils.nullCheck() && entity == Raven.mc.thePlayer) {
+        if (Utils.nullCheck() && entity == Rug.mc.thePlayer) {
             BlockWebEvent event = new BlockWebEvent(blockPos, state);
             MinecraftForge.EVENT_BUS.post(event);
 

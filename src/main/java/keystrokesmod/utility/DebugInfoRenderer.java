@@ -1,6 +1,6 @@
 package keystrokesmod.utility;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.PreMotionEvent;
 import keystrokesmod.event.SendPacketEvent;
 import keystrokesmod.module.impl.other.anticheats.utils.world.PlayerMove;
@@ -28,7 +28,7 @@ public class DebugInfoRenderer extends net.minecraft.client.gui.Gui {
 
     @SubscribeEvent
     public void onPreMotion(PreMotionEvent event) {
-        if (!Raven.debugger || !Utils.nullCheck()) {
+        if (!Rug.debugger || !Utils.nullCheck()) {
             speedFromJump.clear();
             avgSpeedFromJump = -1;
             return;
@@ -52,14 +52,14 @@ public class DebugInfoRenderer extends net.minecraft.client.gui.Gui {
 
     @SubscribeEvent
     public void onRenderTick(RenderTickEvent ev) {
-        if (!Raven.debugger || !Utils.nullCheck()) {
+        if (!Rug.debugger || !Utils.nullCheck()) {
             return;
         }
 
         if (mc.currentScreen == null) {
             RenderUtils.renderBPS(String.format("Server speed: %.2fbps  Client speed: ", PlayerMove.getXzSecSpeed(lastServerPos, curServerPos)), true, true);
             if (avgSpeedFromJump != -1) {
-                ScaledResolution scaledResolution = new ScaledResolution(Raven.mc);
+                ScaledResolution scaledResolution = new ScaledResolution(Rug.mc);
 
                 FontManager.getMinecraft().drawString(
                         String.format("Speed from jump: %.2f", avgSpeedFromJump),

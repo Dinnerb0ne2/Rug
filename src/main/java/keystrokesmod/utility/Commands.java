@@ -3,7 +3,7 @@ package keystrokesmod.utility;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mojang.realmsclient.gui.ChatFormatting;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.ClickGui;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -67,7 +67,7 @@ public class Commands {
 
                 print("Setting...", 1);
                 n = args.get(1);
-                Raven.getExecutor().execute(() -> {
+                Rug.getExecutor().execute(() -> {
                     if (URLUtils.isHypixelKeyValid(n)) {
                         URLUtils.k = n;
                         print("&a" + "success!", 0);
@@ -143,7 +143,7 @@ public class Commands {
 
                 n = args.get(1);
                 print("Retrieving data...", 1);
-                Raven.getExecutor().execute(() -> {
+                Rug.getExecutor().execute(() -> {
                     int[] s = ProfileUtils.getHypixelStats(n, ProfileUtils.DM.OVERALL);
                     if (s != null) {
                         if (s[0] == -1) {
@@ -177,7 +177,7 @@ public class Commands {
                     return;
                 }
 
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     String name = module.getName().toLowerCase().replace(" ", "");
                     if (name.equals(args.get(1).toLowerCase())) {
                         module.setHidden(true);
@@ -195,7 +195,7 @@ public class Commands {
                     return;
                 }
 
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     String name = module.getName().toLowerCase().replace(" ", "");
                     if (name.equals(args.get(1).toLowerCase())) {
                         module.setHidden(false);
@@ -204,7 +204,7 @@ public class Commands {
                 }
             } else if (firstArg.equals("panic")) {
                 List<Module> modulesToDisable = new ArrayList<>();
-                for (Module m : Raven.getModuleManager().getModules()) {
+                for (Module m : Rug.getModuleManager().getModules()) {
                     if (m.isEnabled()) {
                         modulesToDisable.add(m);
                     }
@@ -224,7 +224,7 @@ public class Commands {
                     return;
                 }
 
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     String name = module.getName().toLowerCase().replace(" ", "");
                     if (name.equals(args.get(1).toLowerCase())) {
                         if (args.size() == 3) {
@@ -242,7 +242,7 @@ public class Commands {
                 ClickGui.resetPosition();
                 print(ChatFormatting.GREEN + "Reset ClickGUI position!", 1);
             } else if (firstArg.equals("folder")) {
-                File folder = new File(Raven.mc.mcDataDir, "keystrokes");
+                File folder = new File(Rug.mc.mcDataDir, "keystrokes");
                 try {
                     Desktop.getDesktop().open(folder);
                 } catch (IOException ex) {
@@ -250,7 +250,7 @@ public class Commands {
                     Utils.sendMessage("&cError locating folder, recreated.");
                 }
             } else if (firstArg.equals("update")) {
-                Raven.getExecutor().execute(AutoUpdate::update);
+                Rug.getExecutor().execute(AutoUpdate::update);
             } else if (firstArg.equals("say")) {
                 if (!hasArgs) {
                     print(invSyn, 1);
@@ -285,7 +285,7 @@ public class Commands {
                 ClientSpoofer.customBrand = c.substring(14);
                 print("&aSet clientspoofer custom brand to " + ClientSpoofer.customBrand, 1);
             } else if (firstArg.equals("binds")) {
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     if (module.getKeycode() != 0) {
                         print(ChatFormatting.AQUA + module.getPrettyName() + ": " + Utils.getKeyName(module.getKeycode()), 1);
                     }
@@ -302,7 +302,7 @@ public class Commands {
                 }
 
                 Module targetModule = null;
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     if (Objects.equals(module.getName(), args.get(1))) {
                         targetModule = module;
                         break;
@@ -340,7 +340,7 @@ public class Commands {
                 }
 
                 Module targetModule = null;
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     if (Objects.equals(module.getPrettyName(), args.get(1))) {
                         targetModule = module;
                         break;
@@ -375,7 +375,7 @@ public class Commands {
                 Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 
                 Module targetModule = null;
-                for (Module module : Raven.getModuleManager().getModules()) {
+                for (Module module : Rug.getModuleManager().getModules()) {
                     if (Objects.equals(module.getPrettyName(), args.get(1))) {
                         targetModule = module;
                         break;
@@ -446,17 +446,17 @@ public class Commands {
                     print("&aRemoved enemy: " + args.get(1), 1);
                 }
             } else if (firstArg.equals("Debug".toLowerCase())) {
-                Raven.debugger = !Raven.debugger;
-                print("Debug " + (Raven.debugger ? "enabled" : "disabled") + ".", 1);
+                Rug.debugger = !Rug.debugger;
+                print("Debug " + (Rug.debugger ? "enabled" : "disabled") + ".", 1);
             } else if (firstArg.equals("profiles") || firstArg.equals("p")) {
                 if (!hasArgs) {
                     print("&aAvailable profiles:", 1);
-                    if (Raven.profileManager.profiles.isEmpty()) {
+                    if (Rug.profileManager.profiles.isEmpty()) {
                         print("None", 0);
                         return;
                     }
-                    for (int i = 0; i < Raven.profileManager.profiles.size(); ++i) {
-                        print(i + 1 + ". " + Raven.profileManager.profiles.get(i).getName(), 0);
+                    for (int i = 0; i < Rug.profileManager.profiles.size(); ++i) {
+                        print(i + 1 + ". " + Rug.profileManager.profiles.get(i).getName(), 0);
                     }
                 } else if (args.get(1).equals("save") || args.get(1).equals("s")) {
                     if (args.size() != 3) {
@@ -468,19 +468,19 @@ public class Commands {
                         print("&cInvalid name.", 1);
                         return;
                     }
-                    Raven.profileManager.saveProfile(new Profile(name, 0));
+                    Rug.profileManager.saveProfile(new Profile(name, 0));
                     print("&aSaved profile:", 1);
                     print(name, 0);
-                    Raven.profileManager.loadProfiles();
+                    Rug.profileManager.loadProfiles();
                 } else if (args.get(1).equals("load") || args.get(1).equals("l")) {
                     if (args.size() != 3) {
                         print(invSyn, 1);
                         return;
                     }
                     String name = args.get(2);
-                    for (Profile profile : Raven.profileManager.profiles) {
+                    for (Profile profile : Rug.profileManager.profiles) {
                         if (profile.getName().equals(name)) {
-                            Raven.profileManager.loadProfile(profile.getName());
+                            Rug.profileManager.loadProfile(profile.getName());
                             print("&aLoaded profile:", 1);
                             print(name, 0);
                             if (Settings.sendMessage.isToggled()) {
@@ -496,12 +496,12 @@ public class Commands {
                         return;
                     }
                     String name = args.get(2);
-                    for (Profile profile : Raven.profileManager.profiles) {
+                    for (Profile profile : Rug.profileManager.profiles) {
                         if (profile.getName().equals(name)) {
-                            Raven.profileManager.deleteProfile(profile.getName());
+                            Rug.profileManager.deleteProfile(profile.getName());
                             print("&aRemoved profile:", 1);
                             print(name, 0);
-                            Raven.profileManager.loadProfiles();
+                            Rug.profileManager.loadProfiles();
                             return;
                         }
                     }

@@ -4,7 +4,7 @@ import keystrokesmod.utility.MoveUtil;
 import net.minecraftforge.fml.common.eventhandler.Cancelable;
 import net.minecraftforge.fml.common.eventhandler.Event;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 @Cancelable
 public class PrePlayerInputEvent extends Event {

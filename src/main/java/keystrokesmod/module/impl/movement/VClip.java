@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.movement;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.ReceivePacketEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.setting.impl.ButtonSetting;
@@ -33,7 +33,7 @@ public class VClip extends Module {
         }
 
         if (cancelS08.getInput() > 0) {
-            Raven.getExecutor().schedule(this::disable, (long) cancelS08.getInput() * 50, TimeUnit.MILLISECONDS);
+            Rug.getExecutor().schedule(this::disable, (long) cancelS08.getInput() * 50, TimeUnit.MILLISECONDS);
         } else {
             disable();
         }

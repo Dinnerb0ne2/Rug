@@ -1,7 +1,7 @@
 package keystrokesmod.utility.font.impl;
 
-import keystrokesmod.Raven;
-import static keystrokesmod.Raven.mc;
+import keystrokesmod.Rug;
+import static keystrokesmod.Rug.mc;
 
 import keystrokesmod.utility.Utils;
 import net.minecraft.client.gui.ScaledResolution;
@@ -16,7 +16,7 @@ import java.util.Map;
 
 public class FontUtil {
 
-    private static final IResourceManager RESOURCE_MANAGER = Raven.mc.getResourceManager();
+    private static final IResourceManager RESOURCE_MANAGER = Rug.mc.getResourceManager();
 
     public static Font getResource(String location, int size) {
         Font font;

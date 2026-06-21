@@ -24,7 +24,7 @@ public class TargetESP extends Module {
     public TargetESP() {
         super("TargetESP", category.render);
         this.registerSetting(mode = new ModeValue("Mode", this)
-                .add(new RavenTargetESP("Raven", this))
+                .add(new RavenTargetESP("Rug", this))
                 .add(new JelloTargetESP("Jello", this))
                 .add(new VapeTargetESP("Vape", this))
         );

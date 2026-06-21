@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.other;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.client.Notifications;
 import keystrokesmod.module.impl.client.Notifications.NotificationTypes;
@@ -57,7 +57,7 @@ public class StaffDetector extends Module {
             String filePath = stafflistPath + listName + ".txt";
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    Objects.requireNonNull(Raven.class.getResourceAsStream(filePath))))) {
+                    Objects.requireNonNull(Rug.class.getResourceAsStream(filePath))))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     staffNames.add(line.trim());

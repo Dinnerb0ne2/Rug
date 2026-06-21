@@ -22,8 +22,8 @@ apply plugin: 'org.spongepowered.mixin'
 apply plugin: 'java'
 
 group = "keystrokesmod"
-archivesBaseName = "raven-XD"
-//version = "Dev"
+archivesBaseName = "Rug"
+version = "b1.1"
 
 compileJava {
     sourceCompatibility = '1.8'
@@ -44,7 +44,7 @@ mixin {
     defaultObfuscationEnv searge
     sourceSets {
         main {
-            ext.refMap = 'mixins.raven.refmap.json'
+            ext.refMap = 'mixins.rug.refmap.json'
         }
     }
 }
@@ -116,7 +116,7 @@ jar {
     }
     manifest {
         attributes(
-                'MixinConfigs': 'mixins.raven.json',
+                'MixinConfigs': 'mixins.rug.json',
                 'TweakClass': 'org.spongepowered.asm.launch.MixinTweaker',
                 'TweakOrder': 0,
                 "FMLCorePlugin": "keystrokesmod.mixins.MixinLoader",

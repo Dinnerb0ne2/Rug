@@ -1,6 +1,6 @@
 package keystrokesmod.clickgui.components.impl;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.components.Component;
 import keystrokesmod.clickgui.components.IComponent;
 import keystrokesmod.module.Module;
@@ -120,7 +120,7 @@ public class ModuleComponent implements IComponent {
         if (this.mod.script != null && this.mod.script.error) {
             button_rgb = INVALID_COLOR;
         }
-        if (this.mod.moduleCategory() == Module.category.profiles && !(this.mod instanceof Manager) && !((ProfileModule) this.mod).saved && Raven.currentProfile.getModule() == this.mod) {
+        if (this.mod.moduleCategory() == Module.category.profiles && !(this.mod instanceof Manager) && !((ProfileModule) this.mod).saved && Rug.currentProfile.getModule() == this.mod) {
             button_rgb = UNSAVED_COLOR;
         }
         GL11.glPushMatrix();
@@ -175,7 +175,7 @@ public class ModuleComponent implements IComponent {
         hovering = isHover(x, y);
 
         if (hovering && categoryComponent.isCategoryOpened() && Gui.toolTip.isToggled() && mod.getPrettyToolTip() != null) {
-            Raven.clickGui.run(() -> RenderUtils.drawToolTip(mod.getPrettyToolTip(), x, y));
+            Rug.clickGui.run(() -> RenderUtils.drawToolTip(mod.getPrettyToolTip(), x, y));
         }
     }
 
@@ -187,8 +187,8 @@ public class ModuleComponent implements IComponent {
         if (this.isHover(x, y) && b == 0 && this.mod.canBeEnabled()) {
             this.mod.toggle();
             if (this.mod.moduleCategory() != Module.category.profiles) {
-                if (Raven.currentProfile != null) {
-                    ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+                if (Rug.currentProfile != null) {
+                    ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
                 }
             }
         }

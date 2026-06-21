@@ -4,7 +4,7 @@ import com.mojang.authlib.GameProfile;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.SendPacketEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -129,9 +129,9 @@ public class AntiBot extends Module {
     }
 
     private static @NotNull List<String> getTablist() {
-        return Raven.mc.getNetHandler().getPlayerInfoMap().parallelStream()
+        return Rug.mc.getNetHandler().getPlayerInfoMap().parallelStream()
                 .map(NetworkPlayerInfo::getGameProfile)
-                .filter(profile -> profile.getId() != Raven.mc.thePlayer.getUniqueID())
+                .filter(profile -> profile.getId() != Rug.mc.thePlayer.getUniqueID())
                 .map(GameProfile::getName)
                 .collect(Collectors.toList());
     }

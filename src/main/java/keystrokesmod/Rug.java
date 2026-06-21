@@ -36,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
         version = "KMV5",
         acceptedMinecraftVersions = "[1.8.9]"
 )
-public class Raven {
+public class Rug {
     public static boolean debugger = false;
     public static Minecraft mc = Minecraft.getMinecraft();
     private static KeySrokeRenderer keySrokeRenderer;
@@ -56,7 +56,7 @@ public class Raven {
     public static int moduleCounter;
     public static int settingCounter;
 
-    public Raven() {
+    public Rug() {
         moduleManager = new ModuleManager();
     }
 
@@ -133,14 +133,14 @@ public class Raven {
                             module.keybind();
                         }
                     }
-                    synchronized (Raven.profileManager.profiles) {
-                        for (Profile profile : Raven.profileManager.profiles) {
+                    synchronized (Rug.profileManager.profiles) {
+                        for (Profile profile : Rug.profileManager.profiles) {
                             if (mc.currentScreen == null) {
                                 profile.getModule().keybind();
                             }
                         }
                     }
-                    for (Module module : Raven.scriptManager.scripts.values()) {
+                    for (Module module : Rug.scriptManager.scripts.values()) {
                         if (mc.currentScreen == null) {
                             module.keybind();
                         }

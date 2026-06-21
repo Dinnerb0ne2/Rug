@@ -1,6 +1,6 @@
 package keystrokesmod.clickgui.components.impl;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.components.Component;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.client.Gui;
@@ -49,15 +49,15 @@ public class BindComponent extends Component {
             }
             else if (b == 1 && this.parent.mod.moduleCategory() != Module.category.profiles) {
                 this.parent.mod.setHidden(!this.parent.mod.isHidden());
-                if (Raven.currentProfile != null) {
-                    ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+                if (Rug.currentProfile != null) {
+                    ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
                 }
             }
             else if (b > 1) {
                 if (this.isBinding) {
                     this.parent.mod.setBind(b + 1000);
-                    if (Raven.currentProfile != null) {
-                        ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+                    if (Rug.currentProfile != null) {
+                        ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
                     }
                     this.isBinding = false;
                 }
@@ -73,12 +73,12 @@ public class BindComponent extends Component {
                 } else {
                     this.parent.mod.setBind(0);
                 }
-                if (Raven.currentProfile != null) {
-                    ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+                if (Rug.currentProfile != null) {
+                    ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
                 }
             } else {
-                if (Raven.currentProfile != null) {
-                    ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+                if (Rug.currentProfile != null) {
+                    ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
                 }
                 this.parent.mod.setBind(keybind);
             }

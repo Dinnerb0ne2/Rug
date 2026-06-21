@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 @SuppressWarnings("DataFlowIssue")
 @Mixin(value = EntityPlayer.class)

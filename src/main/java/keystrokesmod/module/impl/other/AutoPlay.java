@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.other;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.ReceivePacketEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -41,7 +41,7 @@ public class AutoPlay extends Module {
                     || message.contains(BedwarsLoseMessage) && message.length() < BedwarsLoseMessage.length() + 3) {
                 Utils.sendModuleMessage(this, "Sending you to a new game.");
 
-                Raven.getExecutor().schedule(() -> {
+                Rug.getExecutor().schedule(() -> {
                     if (!ModuleManager.autoPlay.isEnabled()) return;
 
                     String command = "";

@@ -1,7 +1,7 @@
 package keystrokesmod.module.impl.client;
 
 import com.mojang.realmsclient.gui.ChatFormatting;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.ClickGui;
 import keystrokesmod.clickgui.components.impl.ModuleComponent;
 import keystrokesmod.dynamic.Dynamic;
@@ -51,7 +51,7 @@ public final class DynamicManager extends Module {
         this.registerSetting(new DescriptionSetting("Dynamics:", () -> !activeDynamics.isEmpty()));
         this.canBeEnabled = false;
 
-        directory = new File(Raven.mc.mcDataDir + File.separator + "keystrokes", "dynamics");
+        directory = new File(Rug.mc.mcDataDir + File.separator + "keystrokes", "dynamics");
         if (!directory.exists()) {
             boolean success = directory.mkdirs();
             if (!success) {
@@ -78,7 +78,7 @@ public final class DynamicManager extends Module {
             if (file.exists() && file.isFile() && file.getName().endsWith(".jar"))
                 classPath.add(file);
         }
-        classPath.add(new File(Raven.class.getProtectionDomain().getCodeSource().getLocation().getFile()));
+        classPath.add(new File(Rug.class.getProtectionDomain().getCodeSource().getLocation().getFile()));
         classPath.add(new File(Minecraft.class.getProtectionDomain().getCodeSource().getLocation().getFile()));
         return classPath;
     }

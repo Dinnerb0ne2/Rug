@@ -1,23 +1,23 @@
 <div align="center">
   
-# Raven XD
+# Rug XD
 <p align="center">
-    <img src="https://img.shields.io/github/issues/xia-mc/Raven-bS?style=flat" alt="issues">
+    <img src="https://img.shields.io/github/issues/xia-mc/Rug-bS?style=flat" alt="issues">
     <img src="https://img.shields.io/badge/license-GPLV3-green" alt="License">
-    <img src="https://tokei.rs/b1/github/xia-mc/Raven-XD?category=code&style=flat" alt="Lines of code">
+    <img src="https://tokei.rs/b1/github/xia-mc/Rug-XD?category=code&style=flat" alt="Lines of code">
 </p>
 
-[![Github Release Downloads](https://img.shields.io/github/downloads/xia-mc/Raven-bS/total?label=Github%20Release%20Downloads&style=flat-square)](https://github.com/xia-mc/Raven-bS/releases)
+[![Github Release Downloads](https://img.shields.io/github/downloads/xia-mc/Rug-bS/total?label=Github%20Release%20Downloads&style=flat-square)](https://github.com/xia-mc/Rug-bS/releases)
 <!--
 [![CurseForge Downloads](http://cf.way2muchnoise.eu/997222.svg?badge_style=flat)](https://www.curseforge.com/minecraft/mc-mods/cheatdetector)
 [![Modrinth Downloads](https://img.shields.io/modrinth/dt/QNVaUzHT?label=Modrinth%20Downloads&logo=Modrinth%20Downloads&style=flat-square)](https://modrinth.com/mod/cheatdetector)
 -->
 
-Raven B4, but for those who can't afford it.
+Rug B4, but for those who can't afford it.
 
-Raven B4, but not only for Hypixel.
+Rug B4, but not only for Hypixel.
 
-<a href="https://dsc.gg/ravenxd"><img src="https://invidget.switchblade.xyz/zSgDKArSH4" alt="https://dsc.gg/ravenxd"/></a><br>
+<a href="https://dsc.gg/rug"><img src="https://invidget.switchblade.xyz/zSgDKArSH4" alt="https://dsc.gg/rug"/></a><br>
 [QQ Group (645021103)](https://qm.qq.com/q/vv0xPdfc6A)
 
 ![2024-08-13_10 14 36](https://github.com/user-attachments/assets/36e8920e-336e-4b62-ae3f-6b9962920812)
@@ -29,7 +29,7 @@ Raven B4, but not only for Hypixel.
 ### Steps:
 
 1. **Download the latest .jar file from the releases**:
-   - Download from [https://github.com/xia-mc/Raven-XD/releases](https://github.com/xia-mc/Raven-XD/releases)
+   - Download from [https://github.com/xia-mc/Rug-XD/releases](https://github.com/xia-mc/Rug-XD/releases)
    - This client requires Forge 1.8.9.
 
 2. **Put in mods folder of your .minecraft directory**:
@@ -38,7 +38,7 @@ Raven B4, but not only for Hypixel.
    - After you're there, all you have to do is drag the file that you just downloaded there.
 
 3. **Launch Minecraft**:
-   - Once your on this step, you are pretty much done. When it's done loading, if you have done it properly, it should have a background with a train and the string "Raven XD" in big white letters.
+   - Once your on this step, you are pretty much done. When it's done loading, if you have done it properly, it should have a background with a train and the string "Rug XD" in big white letters.
    - For more help, join the discord server and ask in #public-support.
 
 ## How do I build this client?
@@ -61,8 +61,8 @@ Raven B4, but not only for Hypixel.
 4. **Clone the Repository**:
    - Run the following commands in the terminal or command prompt:
      ```bash
-     git clone --recursive https://github.com/xia-mc/Raven-XD.git
-     cd Raven-XD
+     git clone --recursive https://github.com/xia-mc/Rug-XD.git
+     cd Rug-XD
      ```
 
 5. **Set Up the Project**:

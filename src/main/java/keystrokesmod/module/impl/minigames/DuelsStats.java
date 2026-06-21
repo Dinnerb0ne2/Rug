@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.minigames;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.module.setting.impl.ModeSetting;
@@ -179,7 +179,7 @@ public class DuelsStats extends Module {
             Utils.sendMessage("&cAPI Key is empty!");
         } else {
             ProfileUtils.DM dm = ProfileUtils.DM.values()[(int) (mode.getInput() - 1.0D)];
-            Raven.getExecutor().execute(() -> {
+            Rug.getExecutor().execute(() -> {
                 int[] s = ProfileUtils.getHypixelStats(n, dm);
                 if (s != null) {
                     if (s[0] == -1) {

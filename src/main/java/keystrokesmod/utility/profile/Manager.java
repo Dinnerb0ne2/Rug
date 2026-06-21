@@ -1,6 +1,6 @@
 package keystrokesmod.utility.profile;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.setting.impl.ButtonSetting;
 import keystrokesmod.utility.Utils;
@@ -14,31 +14,31 @@ public class Manager extends Module {
     public Manager() {
         super("Manager", category.profiles);
         this.registerSetting(createProfile = new ButtonSetting("Create profile", () -> {
-            if (Utils.nullCheck() && Raven.profileManager != null) {
+            if (Utils.nullCheck() && Rug.profileManager != null) {
                 String name = "profile-";
                 for (int i = 1; i <= 100; i++) {
-                    if (Raven.profileManager.getProfile(name + i) != null) {
+                    if (Rug.profileManager.getProfile(name + i) != null) {
                         continue;
                     }
                     name += i;
-                    Raven.profileManager.saveProfile(new Profile(name, 0));
+                    Rug.profileManager.saveProfile(new Profile(name, 0));
                     Utils.sendMessage("&7Created profile: &b" + name);
-                    Raven.profileManager.loadProfiles();
+                    Rug.profileManager.loadProfiles();
                     break;
                 }
             }
         }));
         this.registerSetting(loadProfiles = new ButtonSetting("Load profiles", () -> {
-            if (Utils.nullCheck() && Raven.profileManager != null) {
-                Raven.profileManager.loadProfiles();
+            if (Utils.nullCheck() && Rug.profileManager != null) {
+                Rug.profileManager.loadProfiles();
             }
         }));
         this.registerSetting(openFolder = new ButtonSetting("Open folder", () -> {
             try {
-                Desktop.getDesktop().open(Raven.profileManager.directory);
+                Desktop.getDesktop().open(Rug.profileManager.directory);
             }
             catch (IOException ex) {
-                Raven.profileManager.directory.mkdirs();
+                Rug.profileManager.directory.mkdirs();
                 Utils.sendMessage("&cError locating folder, recreated.");
             }
         }));

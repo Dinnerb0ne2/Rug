@@ -1,6 +1,6 @@
 package keystrokesmod.module;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.impl.client.Gui;
 import keystrokesmod.module.impl.client.Notifications;
 import keystrokesmod.module.impl.client.Settings;
@@ -63,7 +63,7 @@ public class Module {
         this.settings = new ArrayList<>();
         this.settingsWeak = new WeakHashSet<>();
         if (!(this instanceof SubMode))
-            Raven.moduleCounter++;
+            Rug.moduleCounter++;
     }
 
     public Module(String name, Module.category moduleCategory) {
@@ -114,7 +114,7 @@ public class Module {
         }
 
         if (this.script != null) {
-            Raven.scriptManager.onEnable(script);
+            Rug.scriptManager.onEnable(script);
         } else {
             try {
                 MinecraftForge.EVENT_BUS.register(this);
@@ -131,7 +131,7 @@ public class Module {
         this.setEnabled(false);
         ModuleManager.organizedModules.remove(this);
         if (this.script != null) {
-            Raven.scriptManager.onDisable(script);
+            Rug.scriptManager.onDisable(script);
         } else {
             try {
                 MinecraftForge.EVENT_BUS.unregister(this);

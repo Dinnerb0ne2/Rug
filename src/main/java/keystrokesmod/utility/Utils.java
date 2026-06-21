@@ -3,7 +3,7 @@ package keystrokesmod.utility;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.mojang.realmsclient.gui.ChatFormatting;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.ClickEvent;
 import keystrokesmod.mixins.impl.client.GuiScreenAccessor;
 import keystrokesmod.module.impl.other.NameHider;
@@ -225,7 +225,7 @@ public class Utils {
     }
 
     static {
-        Raven.getExecutor().scheduleWithFixedDelay(() -> {
+        Rug.getExecutor().scheduleWithFixedDelay(() -> {
             if (Utils.nullCheck() && !delayedMessage.isEmpty()) {
                 for (String s : delayedMessage) {
                     sendMessage(s);

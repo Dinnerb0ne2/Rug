@@ -12,7 +12,7 @@ import net.minecraft.network.play.server.S14PacketEntity;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.jetbrains.annotations.NotNull;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 public class AutoBlockA extends Check {
     private boolean needToCheck = false;

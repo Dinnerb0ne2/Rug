@@ -1,9 +1,9 @@
 [
 {
-  "modid": "keystrokes",
-  "name": "KeystrokesMod",
-  "description": "Shows your keystrokes ingame. | Updated and modified by spiderfrog | V5 by Yario & Extazz | Ported by OFP.",
-  "version": "KMV5",
+  "modid": "rug",
+  "name": "Rug",
+  "description": "Rug - refactored keystrokes mod",
+  "version": "b1.1",
   "url": "https://www.youtube.com/ofpmedia",
   "updateUrl": "",
   "authorList": ["OFP", "Fyu", "spiderfrog", "Yario & Extazz"],

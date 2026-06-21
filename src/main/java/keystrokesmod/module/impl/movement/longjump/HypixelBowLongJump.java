@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.movement.longjump;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.*;
 import keystrokesmod.module.impl.client.Notifications;
 import keystrokesmod.module.impl.movement.LongJump;
@@ -68,7 +68,7 @@ public class HypixelBowLongJump extends SubMode<LongJump> {
             case SELF_DAMAGE:
                 if (SlotHandler.getCurrentSlot() == slot) {
                     PacketUtils.sendPacketNoEvent(new C08PacketPlayerBlockPlacement(SlotHandler.getHeldItem()));
-                    Raven.getExecutor().schedule(() -> PacketUtils.sendPacketNoEvent(new C07PacketPlayerDigging(
+                    Rug.getExecutor().schedule(() -> PacketUtils.sendPacketNoEvent(new C07PacketPlayerDigging(
                             C07PacketPlayerDigging.Action.RELEASE_USE_ITEM,
                             BlockPos.ORIGIN, EnumFacing.UP
                     )), 200, TimeUnit.MILLISECONDS);

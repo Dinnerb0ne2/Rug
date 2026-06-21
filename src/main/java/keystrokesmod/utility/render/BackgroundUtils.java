@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.awt.*;
 import java.util.List;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 public class BackgroundUtils {
     public static final ResourceLocation RES_LOGO = new ResourceLocation("keystrokesmod:textures/backgrounds/ravenxd.png");

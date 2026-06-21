@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.other;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.ReceivePacketEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.impl.client.Notifications;
@@ -76,7 +76,7 @@ public class AutoRegister extends Module {
                 (register ? "Registering" : "Logging in") + "... (" + time + "ms)"
         );
 
-        Raven.getExecutor().schedule(() -> {
+        Rug.getExecutor().schedule(() -> {
             final String pwd = generatePassword(mc.thePlayer.getName());
             final String text;
             if (register) {

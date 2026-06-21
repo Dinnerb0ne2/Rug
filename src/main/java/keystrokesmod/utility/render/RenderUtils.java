@@ -39,7 +39,7 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 import static org.lwjgl.opengl.GL11.*;
 
 public class RenderUtils {

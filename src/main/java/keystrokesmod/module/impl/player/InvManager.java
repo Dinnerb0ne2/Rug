@@ -1,7 +1,7 @@
 package keystrokesmod.module.impl.player;
 
 import akka.japi.Pair;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.PreMotionEvent;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.ModuleManager;
@@ -146,7 +146,7 @@ public class InvManager extends Module {
                     prepareTasks();
                     state = State.TASKING;
                 } else {
-                    Raven.getExecutor().schedule(
+                    Rug.getExecutor().schedule(
                             () -> {
                                 prepareTasks();
                                 state = State.TASKING;

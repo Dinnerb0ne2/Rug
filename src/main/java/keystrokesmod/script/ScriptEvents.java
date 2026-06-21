@@ -1,6 +1,6 @@
 package keystrokesmod.script;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.*;
 import keystrokesmod.module.Module;
 import keystrokesmod.script.classes.Entity;
@@ -33,7 +33,7 @@ public class ScriptEvents {
         if (r.isEmpty()) {
             return;
         }
-        if (Raven.scriptManager.invokeBoolean("onChat", module, e.message.getUnformattedText()) == 0) {
+        if (Rug.scriptManager.invokeBoolean("onChat", module, e.message.getUnformattedText()) == 0) {
             e.setCanceled(true);
         }
     }
@@ -47,7 +47,7 @@ public class ScriptEvents {
             return;
         }
         CPacket a = PacketHandler.convertServerBound(e.getPacket());
-        if (a != null && Raven.scriptManager.invokeBoolean("onPacketSent", module, a) == 0) {
+        if (a != null && Rug.scriptManager.invokeBoolean("onPacketSent", module, a) == 0) {
             e.setCanceled(true);
         }
     }
@@ -58,7 +58,7 @@ public class ScriptEvents {
             return;
         }
         SPacket a = PacketHandler.convertClientBound(e.getPacket());
-        if (a != null && Raven.scriptManager.invokeBoolean("onPacketReceived", module, a) == 0) {
+        if (a != null && Rug.scriptManager.invokeBoolean("onPacketReceived", module, a) == 0) {
             e.setCanceled(true);
         }
     }
@@ -68,17 +68,17 @@ public class ScriptEvents {
         if (!Utils.nullCheck()) {
             return;
         }
-        Raven.scriptManager.invoke("onRenderWorld", module, e.partialTicks);
+        Rug.scriptManager.invoke("onRenderWorld", module, e.partialTicks);
     }
 
     @SubscribeEvent
     public void onPreUpdate(PreUpdateEvent e) {
-        Raven.scriptManager.invoke("onPreUpdate", module);
+        Rug.scriptManager.invoke("onPreUpdate", module);
     }
 
     @SubscribeEvent
     public void onPostUpdate(PostUpdateEvent e) {
-        Raven.scriptManager.invoke("onPostUpdate", module);
+        Rug.scriptManager.invoke("onPostUpdate", module);
     }
 
     @SubscribeEvent
@@ -86,13 +86,13 @@ public class ScriptEvents {
         if (e.phase != TickEvent.Phase.END || !Utils.nullCheck()) {
             return;
         }
-        Raven.scriptManager.invoke("onRenderTick", module, e.renderTickTime);
+        Rug.scriptManager.invoke("onRenderTick", module, e.renderTickTime);
     }
 
     @SubscribeEvent
     public void onPreMotion(PreMotionEvent e) {
         PlayerState playerState = new PlayerState(e);
-        Raven.scriptManager.invoke("onPreMotion", module, playerState);
+        Rug.scriptManager.invoke("onPreMotion", module, playerState);
         if (e.isEquals(playerState)) {
             return;
         }
@@ -114,26 +114,26 @@ public class ScriptEvents {
             return;
         }
         if (e.entity == Minecraft.getMinecraft().thePlayer) {
-            Raven.scriptManager.invoke("onWorldJoin", module, ScriptDefaults.client.getPlayer());
+            Rug.scriptManager.invoke("onWorldJoin", module, ScriptDefaults.client.getPlayer());
             ScriptManager.localPlayer = new Entity(Minecraft.getMinecraft().thePlayer);
             return;
         }
-        Raven.scriptManager.invoke("onWorldJoin", module, new Entity(e.entity));
+        Rug.scriptManager.invoke("onWorldJoin", module, new Entity(e.entity));
     }
 
     @SubscribeEvent
     public void onPostInput(PostPlayerInputEvent e) {
-        Raven.scriptManager.invoke("onPostPlayerInput", module);
+        Rug.scriptManager.invoke("onPostPlayerInput", module);
     }
 
     @SubscribeEvent
     public void onPostMotion(PostMotionEvent e) {
-        Raven.scriptManager.invoke("onPostMotion", module);
+        Rug.scriptManager.invoke("onPostMotion", module);
     }
 
     @SubscribeEvent
     public void onMouse(MouseEvent e) {
-        if (Raven.scriptManager.invokeBoolean("onMouse", module, e.button, e.buttonstate) == 0) {
+        if (Rug.scriptManager.invokeBoolean("onMouse", module, e.button, e.buttonstate) == 0) {
             e.setCanceled(true);
         }
     }

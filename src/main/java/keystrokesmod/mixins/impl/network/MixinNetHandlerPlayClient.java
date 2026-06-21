@@ -1,7 +1,7 @@
 package keystrokesmod.mixins.impl.network;
 
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.PostVelocityEvent;
 import keystrokesmod.event.PreVelocityEvent;
 import keystrokesmod.module.ModuleManager;
@@ -22,7 +22,7 @@ public abstract class MixinNetHandlerPlayClient {
     public void onPreHandleEntityVelocity(S12PacketEntityVelocity packet, CallbackInfo ci) {
         if (!Utils.nullCheck()) return;
 
-        if (packet.getEntityID() == Raven.mc.thePlayer.getEntityId()) {
+        if (packet.getEntityID() == Rug.mc.thePlayer.getEntityId()) {
             if (ModuleManager.longJump.isEnabled()) return;
 
             PreVelocityEvent event = new PreVelocityEvent(packet.getMotionX(), packet.getMotionY(), packet.getMotionZ());
@@ -42,7 +42,7 @@ public abstract class MixinNetHandlerPlayClient {
     public void onPostHandleEntityVelocity(S12PacketEntityVelocity packet, CallbackInfo ci) {
         if (!Utils.nullCheck()) return;
 
-        if (packet.getEntityID() == Raven.mc.thePlayer.getEntityId()) {
+        if (packet.getEntityID() == Rug.mc.thePlayer.getEntityId()) {
             MinecraftForge.EVENT_BUS.post(new PostVelocityEvent());
         }
     }

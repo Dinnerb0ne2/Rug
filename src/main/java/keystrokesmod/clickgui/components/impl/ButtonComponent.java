@@ -1,6 +1,6 @@
 package keystrokesmod.clickgui.components.impl;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.clickgui.components.Component;
 import keystrokesmod.module.Module;
 import keystrokesmod.module.setting.Setting;
@@ -105,8 +105,8 @@ public class ButtonComponent extends Component {
                 this.mod.guiButtonToggled(this.buttonSetting);
             } catch (Exception ignored) {
             }
-            if (Raven.currentProfile != null) {
-                ((ProfileModule) Raven.currentProfile.getModule()).saved = false;
+            if (Rug.currentProfile != null) {
+                ((ProfileModule) Rug.currentProfile.getModule()).saved = false;
             }
             parent.categoryComponent.render();
         }

@@ -3,7 +3,7 @@ package keystrokesmod.utility;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mojang.realmsclient.gui.ChatFormatting;
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.module.impl.render.Watermark;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -24,7 +24,7 @@ import java.io.InputStream;
 public class AutoUpdate {
 
     public static void init() {
-        Raven.getExecutor().execute(() -> {
+        Rug.getExecutor().execute(() -> {
             @NotNull Result result = checkVersion();
             switch (result.getType()) {
                 case FAIL:
@@ -62,7 +62,7 @@ public class AutoUpdate {
             CloseableHttpResponse response = httpClient.execute(httpGet);
 
             InputStream input = response.getEntity().getContent();
-            File file = new File(Raven.mc.mcDataDir + File.separator + "mods", "Raven-XD.jar");
+            File file = new File(Rug.mc.mcDataDir + File.separator + "mods", "Rug-XD.jar");
             file.createNewFile();
             FileOutputStream output = new FileOutputStream(file);
 
@@ -87,7 +87,7 @@ public class AutoUpdate {
     @Contract(" -> new")
     private static @NotNull Result checkVersion() {
         try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
-            HttpGet httpGet = new HttpGet("https://api.github.com/repos/xia-mc/Raven-XD/releases/latest");
+            HttpGet httpGet = new HttpGet("https://api.github.com/repos/xia-mc/Rug-XD/releases/latest");
             CloseableHttpResponse response = httpClient.execute(httpGet);
 
             if (response.getStatusLine().getStatusCode() != 200) {

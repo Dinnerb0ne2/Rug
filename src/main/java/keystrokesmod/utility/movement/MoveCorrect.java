@@ -7,7 +7,7 @@ import net.minecraft.util.MathHelper;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Range;
 
-import static keystrokesmod.Raven.mc;
+import static keystrokesmod.Rug.mc;
 
 public class MoveCorrect {
     public static final double MID_POS = 0.99999999999998;

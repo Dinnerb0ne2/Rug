@@ -1,6 +1,6 @@
 package keystrokesmod.module.impl.combat.velocity;
 
-import keystrokesmod.Raven;
+import keystrokesmod.Rug;
 import keystrokesmod.event.PostVelocityEvent;
 import keystrokesmod.module.impl.combat.Velocity;
 import keystrokesmod.module.setting.impl.ButtonSetting;
@@ -40,7 +40,7 @@ public class TickVelocity extends SubMode<Velocity> {
         lastVelocityTime = time;
 
         if (chance.getInput() == 100 || Math.random() * 100 <= chance.getInput()) {
-            Raven.getExecutor().schedule(() -> {
+            Rug.getExecutor().schedule(() -> {
                 if (mc.thePlayer.hurtTime > 0) {
                     mc.thePlayer.motionX *= horizontal.getInput() / 100;
                     mc.thePlayer.motionY *= vertical.getInput() / 100;
