@@ -1,93 +1,87 @@
 <div align="center">
-  
-# Rug XD
-<p align="center">
-    <img src="https://img.shields.io/github/issues/xia-mc/Rug-bS?style=flat" alt="issues">
-    <img src="https://img.shields.io/badge/license-GPLV3-green" alt="License">
-    <img src="https://tokei.rs/b1/github/xia-mc/Rug-XD?category=code&style=flat" alt="Lines of code">
+<p>
+    <img width="250" src="https://raw.githubusercontent.com/CCBlueX/LiquidCloud/master/LiquidBounce/liquidbounceLogo.svg">
 </p>
+    
+[Website](https://liquidbounce.net) |
+[Forum](https://forums.ccbluex.net) |
+[Discord](https://discord.com/invite/68GgEGTRr9) | 
+[YouTube](https://youtube.com/CCBlueX) |
+[Twitter](https://twitter.com/CCBlueX)
 
-[![Github Release Downloads](https://img.shields.io/github/downloads/xia-mc/Rug-bS/total?label=Github%20Release%20Downloads&style=flat-square)](https://github.com/xia-mc/Rug-bS/releases)
-<!--
-[![CurseForge Downloads](http://cf.way2muchnoise.eu/997222.svg?badge_style=flat)](https://www.curseforge.com/minecraft/mc-mods/cheatdetector)
-[![Modrinth Downloads](https://img.shields.io/modrinth/dt/QNVaUzHT?label=Modrinth%20Downloads&logo=Modrinth%20Downloads&style=flat-square)](https://modrinth.com/mod/cheatdetector)
--->
-
-Rug B4, but for those who can't afford it.
-
-Rug B4, but not only for Hypixel.
-
-<a href="https://dsc.gg/rug"><img src="https://invidget.switchblade.xyz/zSgDKArSH4" alt="https://dsc.gg/rug"/></a><br>
-[QQ Group (645021103)](https://qm.qq.com/q/vv0xPdfc6A)
-
-![2024-08-13_10 14 36](https://github.com/user-attachments/assets/36e8920e-336e-4b62-ae3f-6b9962920812)
-![Screenshot 2024-08-13 084510](https://github.com/user-attachments/assets/85637f18-9d6b-47d9-9dc2-cb8594aff585)
+A free mixin-based injection hacked-client for Minecraft using Minecraft Forge, supporting version 1.8.9
 </div>
 
-## How do I install this client?
+## Discontinuation Notice
+[Legacy](https://github.com/CCBlueX/LiquidBounce/tree/legacy) development was maintained by the community from 2020 to 2025. However, Legacy is now discontinued in favor of [Nextgen](https://github.com/CCBlueX/LiquidBounce/tree/nextgen). Since 2020, the project was officially discontinued by us, [CCBlueX](https://ccbluex.net), which started the development in 2015.
 
-### Steps:
+**b100 is the final release published by our community maintainers, and no further pull requests will be accepted.** A huge thanks to everyone who contributed to the project over the years, with special recognition to our lead maintainers, @EclipsesDev and @mems01.
 
-1. **Download the latest .jar file from the releases**:
-   - Download from [https://github.com/xia-mc/Rug-XD/releases](https://github.com/xia-mc/Rug-XD/releases)
-   - This client requires Forge 1.8.9.
+> "I have started LiquidBounce in 2015, and since 2020 I have been working on a new code base, Nextgen, which left the Legacy code base to the community.
+> A huge thank you for the community maintainers who have kept this branch of the client alive for so long, while our CCBlueX team was able to focus on our new branch.
+> Looking at the current state, I'm not entirely happy with the direction this branch has taken, but I'm grateful for the work that has been done and the time that has been invested in it. 
+> I'm looking forward to the future of LiquidBounce and hope that we can merge our efforts in the future to create a better client for everyone."
+>
+> — Izuna, Founder
 
-2. **Put in mods folder of your .minecraft directory**:
-   - If you don't already have this, please install Forge 1.8.9 by clicking installer, and clicking skip after 5 seconds (https://files.minecraftforge.net/net/minecraftforge/forge/index_1.8.9.html).
-   - Once you've done that, open file explorer, and in the search bar type %Appdata%. Once you're there navigate to .minecraft, then finally the folder called "mods".
-   - After you're there, all you have to do is drag the file that you just downloaded there.
-
-3. **Launch Minecraft**:
-   - Once your on this step, you are pretty much done. When it's done loading, if you have done it properly, it should have a background with a train and the string "Rug XD" in big white letters.
-   - For more help, join the discord server and ask in #public-support.
-
-## How do I build this client?
-
-### Steps:
-
-1. **Download and Install Java SDK version 8**:
-   - Download from [Java SDK version 8](https://adoptium.net/en-GB/temurin/releases/?version=8).
-   - Install it and set the `JAVA_HOME` environment variable to the installation directory.
-
-2. **Verify Java Installation**:
-   - Open a terminal or command prompt.
-   - Run `java -version`.
-   - Ensure the output contains `openjdk version "1.8.0_{...}"`.
-
-3. **Install Gradle 4.7**:
-   - Download from [Gradle 4.7](https://gradle.org/next-steps/?version=4.7&format=bin).
-   - Follow the "Installing manually" guide on the [Gradle wiki](https://gradle.org/install).
-
-4. **Clone the Repository**:
-   - Run the following commands in the terminal or command prompt:
-     ```bash
-     git clone --recursive https://github.com/xia-mc/Rug-XD.git
-     cd Rug-XD
-     ```
-
-5. **Set Up the Project**:
-   - Run the following commands to set up the Gradle wrapper and the development environment:
-     ```bash
-     gradlew.bat
-     gradle wrapper
-     gradlew build
-     ```
-
-6. **Build Success**:
-   - If all steps complete without errors, the project is successfully built.
+> "With this being the final release of Legacy, I’m grateful for how much this client has progressed.
+> It has not only improved significantly over the previous version but also helped me grow as a developer, pushing me to learn and do better.
+> I’d like to thank the CCBlueX team for their client support throughout this journey and @mems01 for his help during the development."
+>
+> — EclipsesDev, Lead Community Maintainer
 
 
-## Contribute
-Feel free to raise an issue or submit a pull request.
+> "This is the final Legacy version, meaning that the development continuation by the community (me and @EclipsesDev) is coming to a stop, permanently.
+> I am proud to have reached this moment and this far with this client's development as it taught me new things everyday.
+> I thank the CCBlueX team for allowing me in the first place to continue the development of this client, and @EclipsesDev for helping me do so.
+> It was a good run."
+>
+> — mems01, Lead Community Maintainer
 
-If you want to co-develop this project with me, please contact me.
+We are grateful for the support we received from the community and hope that you will continue to support us in the future on our new code base, [Nextgen](https://github.com/CCBlueX/LiquidBounce/tree/nextgen) that will continue to be maintained by us.
 
-You can also support us on [Patreon](https://www.patreon.com/xia__mc)!
+## Issues
+If you notice any bugs or missing features, you can let us know by opening an issue [here](https://github.com/CCBlueX/LiquidBounce/issues).
 
-<div align="center">
+## License
+This project is subject to the [GNU General Public License v3.0](LICENSE). This does only apply for source code located directly in this clean repository. During the development and compilation process, additional source code may be used to which we have obtained no rights. Such code is not covered by the GPL license.
 
-[!![-preview](https://github.com/user-attachments/assets/ac50e6e5-3227-4ee9-9881-2e7b8ba47861)](https://www.patreon.com/xia__mc)
+For those who are unfamiliar with the license, here is a summary of its main points. This is by no means legal advice nor legally binding.
 
-<img src="https://github.com/SAWARATSUKI/KawaiiLogos/blob/main/IntelliJ IDEA/IntelliJ IDEA.png" alt="Java" width="500" />
+You are allowed to
+- use
+- share
+- modify
 
-</div>
+this project entirely or partially for free and even commercially. However, please consider the following:
+
+- **You must disclose the source code of your modified work and the source code you took from this project. This means you are not allowed to use code from this project (even partially) in a closed-source (or even obfuscated) application.**
+- **Your modified application must also be licensed under the GPL** 
+
+Do the above and share your source code with everyone; just like we do.
+
+## Setting up a Workspace
+LiquidBounce is using Gradle, so make sure that it is installed properly. Instructions can be found on [Gradle's website](https://gradle.org/install/).
+1. Clone the repository using `git clone https://github.com/CCBlueX/LiquidBounce/`. 
+2. CD into the local repository folder.
+3. Switch to the legacy branch using `git checkout legacy`
+4. Depending on which IDE you are using execute either of the following commands:
+    - For IntelliJ: `gradlew --debug setupDevWorkspace idea genIntellijRuns build`
+    - For Eclipse: `gradlew --debug setupDevWorkspace eclipse build`
+5. Open the folder as a Gradle project in your IDE.
+6. Select either the Forge or Vanilla run configuration.
+
+## Additional libraries
+### Mixins
+Mixins can be used to modify classes at runtime before they are loaded. LiquidBounce is using it to inject its code into the Minecraft client. This way, we do not have to ship Mojang's copyrighted code. If you want to learn more about it, check out its [Documentation](https://docs.spongepowered.org/5.1.0/en/plugin/internals/mixins.html).
+
+## Contributing
+
+We appreciate contributions. So if you want to support us, feel free to make changes to LiquidBounce's source code and submit a pull request. Currently, our main goals are the following:
+1. Improve LiquidBounce's performance.
+2. Re-work most of the render code.
+
+If you have experience in one or more of these fields, we would highly appreciate your support.
+
+## Stats
+![Alt](https://repobeats.axiom.co/api/embed/53a8b71ca387182c6f12a1c98a88edbe0a7bae99.svg "Repobeats analytics image")

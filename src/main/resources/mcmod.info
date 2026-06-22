@@ -1,15 +1,16 @@
 [
-{
-  "modid": "rug",
-  "name": "Rug",
-  "description": "Rug - refactored keystrokes mod",
-  "version": "b1.1",
-  "url": "https://www.youtube.com/ofpmedia",
-  "updateUrl": "",
-  "authorList": ["OFP", "Fyu", "spiderfrog", "Yario & Extazz"],
-  "credits": "OFP, Fyu, spiderfrog, Yario & Extazz",
-  "logoFile": "",
-  "screenshots": [],
-  "dependencies": []
-}
+  {
+    "modid": "liquidbounce",
+    "name": "LiquidBounce",
+    "description": "A free mixin-based injection hacked-client",
+    "version": "${version}",
+    "mcversion": "1.8.9",
+    "url": "https://liquidbounce.net",
+    "updateUrl": "",
+    "authorList": ["CCBlueX"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
 ]
