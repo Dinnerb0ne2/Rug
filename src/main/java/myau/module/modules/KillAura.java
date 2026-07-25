@@ -96,6 +96,13 @@ public class KillAura extends Module {
 
     private final RotationUtil.BezierRotator bezierRotator = new RotationUtil.BezierRotator();
 
+    private int smartCpsValue = 8;
+    private boolean shouldAttack = true;
+    private boolean shouldCrit = true;
+    private int hitSelectTickCounter = 10;
+    private boolean shouldFirstlyHit_1 = true;
+    private boolean shouldFirstlyHit_2 = true;
+
     public final ModeProperty mode;
     public final ModeProperty sort;
     public final ModeProperty autoBlock;
@@ -119,8 +126,8 @@ public class KillAura extends Module {
     public final FloatProperty smoothBackSpeed;
 
     public final BooleanProperty bestHitVec;
-    public final BooleanProperty perfectHit;
-    public final BooleanProperty perfectHitGomme;
+    public final ModeProperty hitSelect;
+    public final BooleanProperty smartCps;
     public final BooleanProperty smartAim;
 
     public final BooleanProperty brownianMotion;
@@ -185,6 +192,32 @@ public class KillAura extends Module {
         public double getZ() { return this.entity.posZ; }
     }
 
+    private void updateSmartCPS() {
+        if (!this.smartCps.getValue()) return;
+        
+        int effectiveMinCPS = this.minCPS.getValue();
+        int effectiveMaxCPS = this.maxCPS.getValue();
+        // 允许动态突破设置的 CPS 范围以体现 SmartCPS 的效果
+        int dynamicMin = Math.max(1, effectiveMinCPS - 5);
+        int dynamicMax = Math.min(20, effectiveMaxCPS + 5);
+
+        if (this.target == null) {
+            this.smartCpsValue = (int) RandomUtil.nextLong(dynamicMin, dynamicMin + 3);
+            return;
+        }
+
+        EntityLivingBase targetEntity = this.target.getEntity();
+        double dist = RotationUtil.distanceToBox(this.target.getBox());
+        
+        boolean fastIncrease = (mc.thePlayer.hurtTime >= 3 && mc.thePlayer.hurtTime <= 10) || 
+                               (targetEntity.hurtTime >= 0 && targetEntity.hurtTime <= 4) || 
+                               (dist >= this.attackRange.getValue() - 0.1 && dist <= this.attackRange.getValue() + 0.9);
+                               
+        int inc = fastIncrease ? (int) RandomUtil.nextLong(2, 5) : (int) RandomUtil.nextLong(-3, 0);
+        this.smartCpsValue += inc;
+        this.smartCpsValue = Math.max(dynamicMin, Math.min(dynamicMax, this.smartCpsValue));
+    }
+
     private long getAttackDelay() {
         int effectiveMinCPS = this.minCPS.getValue();
         int effectiveMaxCPS = this.maxCPS.getValue();
@@ -211,7 +244,68 @@ public class KillAura extends Module {
             }
         }
         if (effectiveMaxCPS < effectiveMinCPS) effectiveMaxCPS = effectiveMinCPS;
-        return 1000L / RandomUtil.nextLong(effectiveMinCPS, effectiveMaxCPS);
+        
+        if (this.smartCps.getValue()) {
+            return 1000L / this.smartCpsValue;
+        } else {
+            return 1000L / RandomUtil.nextLong(effectiveMinCPS, effectiveMaxCPS);
+        }
+    }
+
+    private boolean checkHitSelectTiming() {
+        if (this.target == null) return false;
+        EntityLivingBase targetEntity = this.target.getEntity();
+        boolean canCrit = mc.thePlayer.fallDistance > 0.0F && !mc.thePlayer.onGround && !mc.thePlayer.isOnLadder() && !mc.thePlayer.isInWater() && !mc.thePlayer.isPotionActive(Potion.blindness) && mc.thePlayer.ridingEntity == null;
+        
+        if (this.hitSelect.getValue() == 1) {
+            if (targetEntity.hurtTime > 1) {
+                this.shouldAttack = true;
+            }
+            if (targetEntity.hurtTime <= 1 && this.shouldAttack) {
+                this.shouldAttack = false;
+                return true;
+            }
+            if (mc.thePlayer.hurtTime >= 5) {
+                return true;
+            }
+            if (canCrit && this.shouldCrit) {
+                this.shouldCrit = false;
+                return true;
+            }
+            if (targetEntity.hurtTime != 0) {
+                this.hitSelectTickCounter = 0;
+            } else {
+                this.hitSelectTickCounter++;
+                if (this.hitSelectTickCounter >= targetEntity.maxHurtTime) {
+                    this.hitSelectTickCounter = 0;
+                    return true;
+                }
+            }
+            return false;
+        } else if (this.hitSelect.getValue() == 2) {
+            if (targetEntity.maxHurtTime <= 1 || targetEntity.hurtTime > 1) {
+                this.shouldAttack = true;
+            }
+            if (targetEntity.hurtTime <= 1 && this.shouldAttack) {
+                this.shouldAttack = false;
+                return true;
+            }
+            if (canCrit && this.shouldCrit) {
+                this.shouldCrit = false;
+                return true;
+            }
+            if (targetEntity.hurtTime != 0) {
+                this.hitSelectTickCounter = 0;
+            } else {
+                this.hitSelectTickCounter++;
+                if (this.hitSelectTickCounter >= targetEntity.maxHurtTime) {
+                    this.hitSelectTickCounter = 0;
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
     }
 
     private int getPlayerPing() {
@@ -476,13 +570,13 @@ public class KillAura extends Module {
         }
     }
 
-    private boolean performAttack(float yaw, float pitch, boolean isPerfectHitting) {
+    private boolean performAttack(float yaw, float pitch, boolean skipAttack) {
         if (!Myau.playerStateManager.digging && !Myau.playerStateManager.placing) {
             if (this.isPlayerBlocking() && this.autoBlock.getValue() != 1) return false;
             else if (this.attackDelayMS > 0L) return false;
             else {
-                if (isPerfectHitting) {
-                    this.attackDelayMS += 500L;
+                if (skipAttack) {
+                    this.attackDelayMS += 50L;
                     return false;
                 }
                 this.attackDelayMS += this.getAttackDelay();
@@ -634,8 +728,8 @@ public class KillAura extends Module {
         this.smoothBackProp = new BooleanProperty("Smooth-Back", true);
         this.smoothBackSpeed = new FloatProperty("Smooth-Back-Speed", 0.3F, 0.05F, 1.0F);
         this.bestHitVec = new BooleanProperty("Best-Hit-Vec", true);
-        this.perfectHit = new BooleanProperty("PerfectHit", false);
-        this.perfectHitGomme = new BooleanProperty("PerfectHit-Gomme", false);
+        this.hitSelect = new ModeProperty("HitSelect", 0, new String[]{"None", "Smart", "Full"});
+        this.smartCps = new BooleanProperty("SmartCPS", false);
         this.smartAim = new BooleanProperty("SmartAim", false);
         this.brownianMotion = new BooleanProperty("Brownian-Motion", true);
         this.brownianIntensity = new FloatProperty("Brownian-Intensity", 0.5F, 0.0F, 5.0F);
@@ -698,11 +792,13 @@ public class KillAura extends Module {
     @EventTarget(Priority.LOW)
     public void onUpdate(UpdateEvent event) {
         if (!this.isEnabled() || event.getType() != EventType.PRE) return;
+        
         if (this.noiseMode.getValue() != 0) {
             this.perlinTimeAccumulator += this.noiseFrequency.getValue() * 0.05F + 0.02F * this.noiseFatigue;
         }
         if (this.attackDelayMS > 0L) this.attackDelayMS -= 50L;
 
+        this.updateSmartCPS();
         this.updateNoiseFatigue(this.target != null);
         this.updateFatigue(this.target != null);
 
@@ -733,16 +829,9 @@ public class KillAura extends Module {
 
             boolean attacked = false;
             if (this.isBoxInSwingRange(this.target.getBox())) {
-                boolean isPerfectHitting = false;
-                if (this.perfectHit.getValue()) {
-                    EntityLivingBase targetEntity = this.target.getEntity();
-                    isPerfectHitting = targetEntity.hurtTime > 1;
-                    if (this.perfectHitGomme.getValue() && mc.objectMouseOver != null && mc.objectMouseOver.typeOfHit == MovingObjectType.ENTITY && mc.objectMouseOver.entityHit instanceof EntityLivingBase) {
-                        EntityLivingBase entity = (EntityLivingBase) mc.objectMouseOver.entityHit;
-                        if (entity.hurtTime == 0 || entity.hurtTime == 1) {
-                            isPerfectHitting = false;
-                        }
-                    }
+                boolean shouldAttackNow = true;
+                if (this.hitSelect.getValue() != 0) {
+                    shouldAttackNow = this.checkHitSelectTiming();
                 }
 
                 float smoothFactor = (float) this.smoothing.getValue() / 100.0F;
@@ -860,7 +949,7 @@ public class KillAura extends Module {
                     this.lastSentPitch = event.getPitch();
                 }
                 this.lastSentInitialized = true;
-                if (attack) attacked = this.performAttack(event.getNewYaw(), event.getNewPitch(), isPerfectHitting);
+                if (attack) attacked = this.performAttack(event.getNewYaw(), event.getNewPitch(), !shouldAttackNow);
             } else {
                 attackRotations = null;
                 this.saActive = false;
@@ -915,6 +1004,11 @@ public class KillAura extends Module {
                             this.fatigueLevel = Math.min(1.0f, this.fatigueLevel + this.fatigueSwitchPenalty.getValue());
                         }
                         this.lastTargetEntityId = currentTargetId;
+                        this.shouldAttack = true;
+                        this.shouldCrit = true;
+                        this.hitSelectTickCounter = 10;
+                        this.shouldFirstlyHit_1 = true;
+                        this.shouldFirstlyHit_2 = true;
                     }
                     this.target = new AttackData(this.target.getEntity());
                 } else {
@@ -971,10 +1065,10 @@ public class KillAura extends Module {
     @EventTarget public void onCancelUse(CancelUseEvent e) { if (this.isBlocking) e.setCancelled(true); }
 
     @Override
-    public void onEnabled() { this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saPointX = 0.0f; this.saPointY = 0.0f; this.saPointZ = 0.0f; this.saLastTargetId = -1; this.wasRotating = false; this.isReturning = false; this.lastTargetHurtTime = 0; this.lastSentYaw = 0.0f; this.lastSentPitch = 0.0f; this.lastSentInitialized = false; this.brownianYawState = 0.0f; this.brownianPitchState = 0.0f; }
+    public void onEnabled() { this.target = null; this.switchTick = 0; this.hitRegistered = false; this.attackDelayMS = 0L; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saPointX = 0.0f; this.saPointY = 0.0f; this.saPointZ = 0.0f; this.saLastTargetId = -1; this.wasRotating = false; this.isReturning = false; this.lastTargetHurtTime = 0; this.lastSentYaw = 0.0f; this.lastSentPitch = 0.0f; this.lastSentInitialized = false; this.brownianYawState = 0.0f; this.brownianPitchState = 0.0f; this.shouldAttack = true; this.shouldCrit = true; this.hitSelectTickCounter = 10; this.shouldFirstlyHit_1 = true; this.shouldFirstlyHit_2 = true; this.smartCpsValue = 8; }
 
     @Override
-    public void onDisabled() { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saPointX = 0.0f; this.saPointY = 0.0f; this.saPointZ = 0.0f; this.saLastTargetId = -1; this.wasRotating = false; this.isReturning = false; this.lastTargetHurtTime = 0; this.lastSentYaw = 0.0f; this.lastSentPitch = 0.0f; this.lastSentInitialized = false; this.brownianYawState = 0.0f; this.brownianPitchState = 0.0f; }
+    public void onDisabled() { Myau.blinkManager.setBlinkState(false, BlinkModules.AUTO_BLOCK); this.blockingState = false; this.isBlocking = false; this.fakeBlockState = false; attackRotations = null; this.perlinTimeAccumulator = 0.0F; this.noiseFatigue = 0.0f; this.lastTargetEntityId = -1; this.fatigueLevel = 0.0f; this.saTemperature = 0.0f; this.saActive = false; this.saPointX = 0.0f; this.saPointY = 0.0f; this.saPointZ = 0.0f; this.saLastTargetId = -1; this.wasRotating = false; this.isReturning = false; this.lastTargetHurtTime = 0; this.lastSentYaw = 0.0f; this.lastSentPitch = 0.0f; this.lastSentInitialized = false; this.brownianYawState = 0.0f; this.brownianPitchState = 0.0f; this.shouldAttack = true; this.shouldCrit = true; this.hitSelectTickCounter = 10; this.shouldFirstlyHit_1 = true; this.shouldFirstlyHit_2 = true; this.smartCpsValue = 8; }
 
     @Override
     public void verifyValue(String v) {
