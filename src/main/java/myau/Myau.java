@@ -58,6 +58,7 @@ public class Myau {
         EventManager.register(moduleManager);
         EventManager.register(commandManager);
         moduleManager.modules.put(AimAssist.class, new AimAssist());
+        moduleManager.modules.put(Animations.class, new Animations());
         moduleManager.modules.put(TargetESP.class, new TargetESP());
         moduleManager.modules.put(ClientSetting.class, new ClientSetting());
         moduleManager.modules.put(AntiDebuff.class, new AntiDebuff());
@@ -81,6 +82,7 @@ public class Myau {
         moduleManager.modules.put(TimerRange.class, new TimerRange());
         moduleManager.modules.put(ExploitFixer.class, new ExploitFixer());
         moduleManager.modules.put(FastPlace.class, new FastPlace());
+        moduleManager.modules.put(RotationDataCollector.class, new RotationDataCollector());
         moduleManager.modules.put(Freeze.class, new Freeze());
         moduleManager.modules.put(Fly.class, new Fly());
         moduleManager.modules.put(FullBright.class, new FullBright());

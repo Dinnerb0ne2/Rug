@@ -153,6 +153,7 @@ public class ClickGui extends GuiScreen {
         List<Module> combatModules = new ArrayList<>();
         combatModules.add(Myau.moduleManager.getModule(AimAssist.class));
         combatModules.add(Myau.moduleManager.getModule(TickBase.class));
+        combatModules.add(Myau.moduleManager.getModule(RotationDataCollector.class));
         combatModules.add(Myau.moduleManager.getModule(AutoClicker.class));
         combatModules.add(Myau.moduleManager.getModule(KillAura.class));
         combatModules.add(Myau.moduleManager.getModule(Wtap.class));
@@ -191,6 +192,7 @@ public class ClickGui extends GuiScreen {
         renderModules.add(Myau.moduleManager.getModule(ClientSetting.class));
         renderModules.add(Myau.moduleManager.getModule(BAHalo.class));
         renderModules.add(Myau.moduleManager.getModule(Particles.class));
+        renderModules.add(Myau.moduleManager.getModule(Animations.class));
         renderModules.add(Myau.moduleManager.getModule(Chat.class));
         renderModules.add(Myau.moduleManager.getModule(Chams.class));
         renderModules.add(Myau.moduleManager.getModule(FullBright.class));

@@ -15,8 +15,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class RotationUtil {
     private static final Minecraft mc = Minecraft.getMinecraft();
     private static final PerlinNoise perlinNoise = new PerlinNoise(new Random(System.nanoTime()));
-    private static float brownianYawOffset = 0.0f;
-    private static float brownianPitchOffset = 0.0f;
 
     public static float wrapAngleDiff(float angle, float target) {
         return target + MathHelper.wrapAngleTo180_float(angle - target);
@@ -128,8 +126,18 @@ public class RotationUtil {
         float newYaw = currentYaw + yawDelta;
         float newPitch = currentPitch + pitchDelta;
         if (gcd > 0.0f) {
-            newYaw = Math.round(newYaw / gcd) * gcd;
-            newPitch = Math.round(newPitch / gcd) * gcd;
+            if (yawDelta != 0.0f && Math.abs(yawDelta) < gcd) {
+                yawDelta = Math.signum(yawDelta) * gcd;
+            } else {
+                yawDelta = Math.round(yawDelta / gcd) * gcd;
+            }
+            if (pitchDelta != 0.0f && Math.abs(pitchDelta) < gcd) {
+                pitchDelta = Math.signum(pitchDelta) * gcd;
+            } else {
+                pitchDelta = Math.round(pitchDelta / gcd) * gcd;
+            }
+            newYaw = currentYaw + yawDelta;
+            newPitch = currentPitch + pitchDelta;
         }
         return new float[]{newYaw, newPitch};
     }
@@ -169,12 +177,17 @@ public class RotationUtil {
         return new float[]{targetYaw, targetPitch};
     }
 
-    public static float[] simulatedAnnealingBoxStep(
+    public static float[] simulatedAnnealingBoxStepAdvanced(
             AxisAlignedBB box,
             float playerYaw, float playerPitch,
             float currentPointX, float currentPointY, float currentPointZ,
             float temperature, int iterations,
-            boolean checkWalls) {
+            boolean checkWalls, int perturbationMode,
+            float perturbationScale, float jumpProb,
+            float energyAngleW, float energyDistW,
+            float energyHeightW, float energyWallW,
+            float energyRandomW, boolean adaptiveStep,
+            boolean edgeExploration) {
 
         Vec3 eyePos = mc.thePlayer.getPositionEyes(1.0f);
 
@@ -182,7 +195,7 @@ public class RotationUtil {
         double cpY = Math.max(box.minY, Math.min(box.maxY, currentPointY));
         double cpZ = Math.max(box.minZ, Math.min(box.maxZ, currentPointZ));
 
-        double currentEnergy = calculateBoxEnergy(cpX, cpY, cpZ, eyePos, playerYaw, playerPitch);
+        double currentEnergy = calculateAdvancedBoxEnergy(cpX, cpY, cpZ, eyePos, playerYaw, playerPitch, checkWalls, energyAngleW, energyDistW, energyHeightW, energyWallW, energyRandomW);
         ThreadLocalRandom rand = ThreadLocalRandom.current();
 
         double boxW = box.maxX - box.minX;
@@ -192,39 +205,82 @@ public class RotationUtil {
 
         double bestEnergy = currentEnergy;
         double bestX = cpX, bestY = cpY, bestZ = cpZ;
+        int acceptedCount = 0;
+
+        double currentTemp = temperature;
 
         for (int i = 0; i < iterations; i++) {
-            double tempScale = temperature * (1.0 - (double) i / iterations);
-            double perturbScale = Math.min(maxBoxDim * 0.4, tempScale * 0.15 + 0.05);
+            double tempScale = currentTemp * (1.0 - (double) i / iterations);
+            double baseStep = Math.min(maxBoxDim * 0.4, tempScale * 0.15 + 0.05);
+            double perturbScale = baseStep * perturbationScale;
 
-            double dx, dy, dz;
-            if (rand.nextBoolean()) {
-                dx = rand.nextGaussian() * perturbScale;
-                dy = rand.nextGaussian() * perturbScale;
-                dz = rand.nextGaussian() * perturbScale;
-            } else {
-                dx = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
-                dy = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
-                dz = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
+            if (adaptiveStep) {
+                double acceptRate = (i == 0 ? 0.5 : (double) acceptedCount / i);
+                if (acceptRate > 0.3) perturbScale *= 1.2;
+                else perturbScale *= 0.8;
+                perturbScale = Math.min(maxBoxDim * 0.8, perturbScale);
             }
 
-            if (rand.nextDouble() < 0.05) {
-                dx *= 3.0; dy *= 3.0; dz *= 3.0;
+            double dx, dy, dz;
+            if (rand.nextDouble() < jumpProb) {
+                dx = (rand.nextDouble() * 2.0 - 1.0) * maxBoxDim * 0.5;
+                dy = (rand.nextDouble() * 2.0 - 1.0) * maxBoxDim * 0.5;
+                dz = (rand.nextDouble() * 2.0 - 1.0) * maxBoxDim * 0.5;
+            } else {
+                switch (perturbationMode) {
+                    case 1:
+                        dx = rand.nextGaussian() * perturbScale;
+                        dy = rand.nextGaussian() * perturbScale;
+                        dz = rand.nextGaussian() * perturbScale;
+                        break;
+                    case 2:
+                        float t = (float) i / iterations * 10.0f;
+                        dx = perlinNoise.noise(t, 0.0, 0.0) * perturbScale;
+                        dy = perlinNoise.noise(0.0, t, 0.0) * perturbScale;
+                        dz = perlinNoise.noise(0.0, 0.0, t) * perturbScale;
+                        break;
+                    case 3:
+                        if (rand.nextBoolean()) {
+                            dx = rand.nextGaussian() * perturbScale;
+                            dy = rand.nextGaussian() * perturbScale;
+                            dz = rand.nextGaussian() * perturbScale;
+                        } else {
+                            dx = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
+                            dy = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
+                            dz = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.5;
+                        }
+                        break;
+                    default:
+                        if (rand.nextBoolean()) {
+                            dx = rand.nextGaussian() * perturbScale * 0.5 + perlinNoise.noise(i * 0.1, 0.0, 0.0) * perturbScale * 0.5;
+                            dy = rand.nextGaussian() * perturbScale * 0.5 + perlinNoise.noise(0.0, i * 0.1, 0.0) * perturbScale * 0.5;
+                            dz = rand.nextGaussian() * perturbScale * 0.5 + perlinNoise.noise(0.0, 0.0, i * 0.1) * perturbScale * 0.5;
+                        } else {
+                            dx = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.2;
+                            dy = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.2;
+                            dz = (rand.nextDouble() * 2.0 - 1.0) * perturbScale * 1.2;
+                        }
+                        break;
+                }
+            }
+
+            if (edgeExploration && rand.nextDouble() < 0.1) {
+                int face = rand.nextInt(6);
+                switch (face) {
+                    case 0: dx = box.maxX - cpX; break;
+                    case 1: dx = box.minX - cpX; break;
+                    case 2: dy = box.maxY - cpY; break;
+                    case 3: dy = box.minY - cpY; break;
+                    case 4: dz = box.maxZ - cpZ; break;
+                    case 5: dz = box.minZ - cpZ; break;
+                }
             }
 
             double newX = Math.max(box.minX, Math.min(box.maxX, cpX + dx));
             double newY = Math.max(box.minY, Math.min(box.maxY, cpY + dy));
             double newZ = Math.max(box.minZ, Math.min(box.maxZ, cpZ + dz));
 
-            if (checkWalls) {
-                Vec3 newVec = new Vec3(newX, newY, newZ);
-                MovingObjectPosition wallHit = mc.theWorld.rayTraceBlocks(eyePos, newVec);
-                if (wallHit != null) {
-                    continue;
-                }
-            }
-
-            double newEnergy = calculateBoxEnergy(newX, newY, newZ, eyePos, playerYaw, playerPitch);
+            double newEnergy = calculateAdvancedBoxEnergy(newX, newY, newZ, eyePos, playerYaw, playerPitch, checkWalls, energyAngleW, energyDistW, energyHeightW, energyWallW, energyRandomW);
             double deltaE = newEnergy - currentEnergy;
 
             if (deltaE <= 0 || rand.nextDouble() < Math.exp(-deltaE / Math.max(0.001, tempScale))) {
@@ -232,6 +288,7 @@ public class RotationUtil {
                 cpY = newY;
                 cpZ = newZ;
                 currentEnergy = newEnergy;
+                acceptedCount++;
 
                 if (currentEnergy < bestEnergy) {
                     bestEnergy = currentEnergy;
@@ -250,7 +307,7 @@ public class RotationUtil {
         return new float[]{targetYaw, targetPitch, (float) bestX, (float) bestY, (float) bestZ};
     }
 
-    private static double calculateBoxEnergy(double px, double py, double pz, Vec3 eyePos, float playerYaw, float playerPitch) {
+    private static double calculateAdvancedBoxEnergy(double px, double py, double pz, Vec3 eyePos, float playerYaw, float playerPitch, boolean checkWalls, float angleW, float distW, float heightW, float wallW, float randomW) {
         double deltaX = px - eyePos.xCoord;
         double deltaY = py - eyePos.yCoord;
         double deltaZ = pz - eyePos.zCoord;
@@ -265,7 +322,18 @@ public class RotationUtil {
         double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
         double heightDiff = Math.abs(py - eyePos.yCoord);
 
-        return 0.5 * angleDiff + 0.15 * distance + 0.35 * heightDiff;
+        double wallPenalty = 0.0;
+        if (checkWalls) {
+            Vec3 newVec = new Vec3(px, py, pz);
+            MovingObjectPosition wallHit = mc.theWorld.rayTraceBlocks(eyePos, newVec);
+            if (wallHit != null) {
+                wallPenalty = 10.0;
+            }
+        }
+
+        double randomNoise = ThreadLocalRandom.current().nextDouble(-0.5, 0.5) * randomW;
+
+        return angleW * angleDiff + distW * distance + heightW * heightDiff + wallW * wallPenalty + randomNoise;
     }
 
     public static float[] smoothBack(float currentYaw, float currentPitch,
@@ -282,92 +350,324 @@ public class RotationUtil {
         float newPitch = currentPitch + pitchDelta;
         float gcd = getSensitivityGCD();
         if (gcd > 0.0f) {
-            newYaw = Math.round(newYaw / gcd) * gcd;
-            newPitch = Math.round(newPitch / gcd) * gcd;
+            if (yawDelta != 0.0f && Math.abs(yawDelta) < gcd) {
+                yawDelta = Math.signum(yawDelta) * gcd;
+            } else {
+                yawDelta = Math.round(yawDelta / gcd) * gcd;
+            }
+            if (pitchDelta != 0.0f && Math.abs(pitchDelta) < gcd) {
+                pitchDelta = Math.signum(pitchDelta) * gcd;
+            } else {
+                pitchDelta = Math.round(pitchDelta / gcd) * gcd;
+            }
+            newYaw = currentYaw + yawDelta;
+            newPitch = currentPitch + pitchDelta;
         }
         return new float[]{newYaw, newPitch};
     }
 
-    public static float getGaussianNoise() {
-        return (float) ThreadLocalRandom.current().nextGaussian();
-    }
+    public static class NoiseRecoverySystem {
+        public float yawOffset = 0.0f;
+        public float pitchOffset = 0.0f;
+        public float yawVelocity = 0.0f;
+        public float pitchVelocity = 0.0f;
+        public float fatigue = 0.0f;
+        public float timeAccumulator = 0.0f;
+        public long lastUpdateMillis;
 
-    public static float getPerlinNoise(float x, float y) {
-        return (float) perlinNoise.octaveNoise(x, y, 0.0, 4, 0.5);
-    }
-
-    public static float getWaveNoise(float time, float frequency) {
-        return (float) (Math.sin(time * frequency) * 0.6f
-                + Math.sin(time * frequency * 2.17f + 1.3f) * 0.25f
-                + Math.sin(time * frequency * 0.73f + 2.7f) * 0.15f);
-    }
-
-    public static float[] applyBrownianMotion(float yaw, float pitch, float intensity) {
-        brownianYawOffset += (float) ThreadLocalRandom.current().nextGaussian() * intensity;
-        brownianPitchOffset += (float) ThreadLocalRandom.current().nextGaussian() * intensity * 0.5f;
-
-        if (brownianYawOffset > 15.0f) brownianYawOffset = 15.0f;
-        if (brownianYawOffset < -15.0f) brownianYawOffset = -15.0f;
-        if (brownianPitchOffset > 15.0f) brownianPitchOffset = 15.0f;
-        if (brownianPitchOffset < -15.0f) brownianPitchOffset = -15.0f;
-
-        float newYaw = yaw + brownianYawOffset;
-        float newPitch = pitch + brownianPitchOffset;
-        float gcd = getSensitivityGCD();
-        if (gcd > 0.0f) {
-            newYaw = Math.round(newYaw / gcd) * gcd;
-            newPitch = Math.round(newPitch / gcd) * gcd;
+        public NoiseRecoverySystem() {
+            reset();
         }
-        return new float[]{newYaw, newPitch};
+
+        public void reset() {
+            yawOffset = 0.0f;
+            pitchOffset = 0.0f;
+            yawVelocity = 0.0f;
+            pitchVelocity = 0.0f;
+            fatigue = 0.0f;
+            timeAccumulator = 0.0f;
+            lastUpdateMillis = System.currentTimeMillis();
+        }
     }
 
-    public static float[] applyBrownianMotion(float yaw, float pitch, float intensity, AxisAlignedBB boundingBox, double attackRange) {
-        if (boundingBox == null) {
-            return applyBrownianMotion(yaw, pitch, intensity);
+    public static float[] applyNoiseRecovery(
+            float yaw, float pitch,
+            NoiseRecoverySystem state,
+            float stiffness, float damping,
+            float fatigueRate, float recoveryRate,
+            float scale, float pitchRatio,
+            float impulseProb, float impulseScale,
+            float microJitter, boolean distanceScale,
+            boolean gcdQuantize, boolean clampToBox,
+            AxisAlignedBB box, double attackRange,
+            double distance) {
+
+        long now = System.currentTimeMillis();
+        float dt = Math.max(0.001f, Math.min(0.1f, (now - state.lastUpdateMillis) / 1000.0f));
+        state.lastUpdateMillis = now;
+        state.timeAccumulator += dt;
+
+        state.fatigue = Math.min(1.0f, state.fatigue + fatigueRate);
+        float fatigueFactor = 0.3f + 0.7f * state.fatigue;
+
+        float effScale = scale;
+        if (distanceScale && distance > 0.0) {
+            effScale *= (float)(0.5 + Math.min(2.5, distance / 3.0) * 0.5);
         }
-        brownianYawOffset += (float) ThreadLocalRandom.current().nextGaussian() * intensity;
-        brownianPitchOffset += (float) ThreadLocalRandom.current().nextGaussian() * intensity * 0.5f;
 
-        if (brownianYawOffset > 15.0f) brownianYawOffset = 15.0f;
-        if (brownianYawOffset < -15.0f) brownianYawOffset = -15.0f;
-        if (brownianPitchOffset > 15.0f) brownianPitchOffset = 15.0f;
-        if (brownianPitchOffset < -15.0f) brownianPitchOffset = -15.0f;
+        float perlinYaw = (float) perlinNoise.noise(state.timeAccumulator * 0.5, 0.0, 0.0);
+        float perlinPitch = (float) perlinNoise.noise(0.0, state.timeAccumulator * 0.5, 0.0);
+        float brownianYaw = (float) (Math.sin(state.timeAccumulator * 1.3) * 0.6 + Math.sin(state.timeAccumulator * 2.7 + 1.5) * 0.3);
+        float brownianPitch = (float) (Math.sin(state.timeAccumulator * 1.7 + 0.8) * 0.6 + Math.sin(state.timeAccumulator * 3.1 + 2.2) * 0.3);
 
-        float testYaw = yaw + brownianYawOffset;
-        float testPitch = pitch + brownianPitchOffset;
+        float targetYawMean = (perlinYaw * 0.6f + brownianYaw * 0.4f) * effScale * fatigueFactor;
+        float targetPitchMean = (perlinPitch * 0.6f + brownianPitch * 0.4f) * effScale * pitchRatio * fatigueFactor;
 
-        if (rayTrace(boundingBox, testYaw, testPitch, attackRange) != null) {
+        targetYawMean += microJitter * (float) ThreadLocalRandom.current().nextGaussian() * 0.1f;
+        targetPitchMean += microJitter * pitchRatio * (float) ThreadLocalRandom.current().nextGaussian() * 0.1f;
+
+        float yawForce = (targetYawMean - state.yawOffset) * stiffness;
+        float pitchForce = (targetPitchMean - state.pitchOffset) * stiffness;
+
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        if (rand.nextDouble() < impulseProb) {
+            float imp = (float) rand.nextGaussian() * impulseScale * effScale * fatigueFactor;
+            yawForce += imp;
+            pitchForce += imp * 0.5f * pitchRatio;
+        }
+
+        float dtScale = dt * 60.0f;
+        state.yawVelocity = state.yawVelocity * damping + yawForce * dtScale;
+        state.pitchVelocity = state.pitchVelocity * damping + pitchForce * dtScale;
+
+        state.yawOffset += state.yawVelocity * dtScale;
+        state.pitchOffset += state.pitchVelocity * dtScale;
+
+        float maxYawOff = effScale * 5.0f;
+        float maxPitchOff = effScale * 5.0f * pitchRatio;
+        if (state.yawOffset > maxYawOff) { state.yawOffset = maxYawOff; state.yawVelocity *= -0.3f; }
+        if (state.yawOffset < -maxYawOff) { state.yawOffset = -maxYawOff; state.yawVelocity *= -0.3f; }
+        if (state.pitchOffset > maxPitchOff) { state.pitchOffset = maxPitchOff; state.pitchVelocity *= -0.3f; }
+        if (state.pitchOffset < -maxPitchOff) { state.pitchOffset = -maxPitchOff; state.pitchVelocity *= -0.3f; }
+
+        float testYaw = yaw + state.yawOffset;
+        float testPitch = pitch + state.pitchOffset;
+
+        if (gcdQuantize) {
             float gcd = getSensitivityGCD();
             if (gcd > 0.0f) {
-                testYaw = Math.round(testYaw / gcd) * gcd;
-                testPitch = Math.round(testPitch / gcd) * gcd;
+                float yDelta = testYaw - yaw;
+                float pDelta = testPitch - pitch;
+                if (yDelta != 0.0f && Math.abs(yDelta) < gcd) yDelta = Math.signum(yDelta) * gcd;
+                else yDelta = Math.round(yDelta / gcd) * gcd;
+                if (pDelta != 0.0f && Math.abs(pDelta) < gcd) pDelta = Math.signum(pDelta) * gcd;
+                else pDelta = Math.round(pDelta / gcd) * gcd;
+                testYaw = yaw + yDelta;
+                testPitch = pitch + pDelta;
             }
-            return new float[]{testYaw, testPitch};
         }
 
-        for (int i = 0; i < 5; i++) {
-            brownianYawOffset *= 0.5f;
-            brownianPitchOffset *= 0.5f;
-            testYaw = yaw + brownianYawOffset;
-            testPitch = pitch + brownianPitchOffset;
-            if (rayTrace(boundingBox, testYaw, testPitch, attackRange) != null) {
+        if (clampToBox && box != null) {
+            if (rayTrace(box, testYaw, testPitch, attackRange) == null) {
+                boolean foundValid = false;
+                for (int i = 0; i < 6; i++) {
+                    float s = 1.0f - (i + 1) * 0.15f;
+                    float sYaw = yaw + state.yawOffset * s;
+                    float sPitch = pitch + state.pitchOffset * s;
+                    if (rayTrace(box, sYaw, sPitch, attackRange) != null) {
+                        state.yawOffset *= s;
+                        state.pitchOffset *= s;
+                        state.yawVelocity *= s;
+                        state.pitchVelocity *= s;
+                        testYaw = sYaw;
+                        testPitch = sPitch;
+                        foundValid = true;
+                        break;
+                    }
+                }
+                if (!foundValid) {
+                    state.yawOffset *= 0.5f;
+                    state.pitchOffset *= 0.5f;
+                    state.yawVelocity *= 0.5f;
+                    state.pitchVelocity *= 0.5f;
+                    testYaw = yaw + state.yawOffset;
+                    testPitch = pitch + state.pitchOffset;
+                }
+            }
+        }
+
+        return new float[]{testYaw, testPitch};
+    }
+
+    public static class BrownianState {
+        public float yawOffset = 0.0f;
+        public float pitchOffset = 0.0f;
+        public float yawVelocity = 0.0f;
+        public float pitchVelocity = 0.0f;
+        public final float[] octavePhases;
+        public long lastUpdateMillis;
+
+        public BrownianState(int maxOctaves) {
+            octavePhases = new float[maxOctaves];
+            reset();
+        }
+
+        public void reset() {
+            yawOffset = 0.0f;
+            pitchOffset = 0.0f;
+            yawVelocity = 0.0f;
+            pitchVelocity = 0.0f;
+            for (int i = 0; i < octavePhases.length; i++) {
+                octavePhases[i] = (float)(Math.random() * 1000.0);
+            }
+            lastUpdateMillis = System.currentTimeMillis();
+        }
+    }
+
+    public static float[] applyAdvancedBrownianMotion(
+            float yaw, float pitch,
+            BrownianState state,
+            float intensity,
+            float yawScale, float pitchScale,
+            float damping, float drift,
+            int octaves, float persistence,
+            float impulseProb, float impulseScale,
+            boolean adaptive, float maxAngle,
+            float correctionSpeed,
+            AxisAlignedBB box, double attackRange,
+            double distance) {
+
+        long now = System.currentTimeMillis();
+        float dt = Math.max(0.001f, Math.min(0.1f, (now - state.lastUpdateMillis) / 1000.0f));
+        state.lastUpdateMillis = now;
+
+        float effIntensity = intensity;
+        if (adaptive && distance > 0.0) {
+            effIntensity *= (float)(0.5 + Math.min(2.5, distance / 3.0) * 0.5);
+        }
+
+        float octaveYaw = 0.0f, octavePitch = 0.0f;
+        float maxAmp = 0.0f, amp = 1.0f, freq = 1.0f;
+        for (int i = 0; i < octaves && i < state.octavePhases.length; i++) {
+            state.octavePhases[i] += dt * freq * 3.0f;
+            float phase = state.octavePhases[i];
+            float nY = (float)(Math.sin(phase) * 0.6 + Math.sin(phase * 1.73 + 0.5) * 0.3 + Math.sin(phase * 0.47 + 1.2) * 0.1);
+            float nP = (float)(Math.sin(phase + 1.7) * 0.6 + Math.sin(phase * 1.73 + 2.1) * 0.3 + Math.sin(phase * 0.47 + 2.8) * 0.1);
+            octaveYaw += nY * amp;
+            octavePitch += nP * amp;
+            maxAmp += amp;
+            amp *= persistence;
+            freq *= 2.0;
+        }
+        if (maxAmp > 0.0f) {
+            octaveYaw /= maxAmp;
+            octavePitch /= maxAmp;
+        }
+
+        float targetYawMean = drift + octaveYaw * effIntensity * yawScale;
+        float targetPitchMean = drift * 0.4f + octavePitch * effIntensity * pitchScale;
+
+        float yawForce = (targetYawMean - state.yawOffset) * damping;
+        float pitchForce = (targetPitchMean - state.pitchOffset) * damping;
+
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        if (rand.nextDouble() < impulseProb) {
+            float imp = (float)rand.nextGaussian() * impulseScale * effIntensity;
+            yawForce += imp;
+            pitchForce += imp * 0.5f;
+        }
+
+        float dtScale = dt * 60.0f;
+        state.yawVelocity = state.yawVelocity * correctionSpeed + yawForce * dtScale;
+        state.pitchVelocity = state.pitchVelocity * correctionSpeed + pitchForce * dtScale;
+
+        state.yawOffset += state.yawVelocity * dtScale;
+        state.pitchOffset += state.pitchVelocity * dtScale;
+
+        float maxYawOff = maxAngle * yawScale;
+        float maxPitchOff = maxAngle * pitchScale;
+        if (state.yawOffset > maxYawOff) { state.yawOffset = maxYawOff; state.yawVelocity *= -0.3f; }
+        if (state.yawOffset < -maxYawOff) { state.yawOffset = -maxYawOff; state.yawVelocity *= -0.3f; }
+        if (state.pitchOffset > maxPitchOff) { state.pitchOffset = maxPitchOff; state.pitchVelocity *= -0.3f; }
+        if (state.pitchOffset < -maxPitchOff) { state.pitchOffset = -maxPitchOff; state.pitchVelocity *= -0.3f; }
+
+        float testYaw = yaw + state.yawOffset;
+        float testPitch = pitch + state.pitchOffset;
+
+        if (box != null) {
+            if (rayTrace(box, testYaw, testPitch, attackRange) != null) {
                 float gcd = getSensitivityGCD();
                 if (gcd > 0.0f) {
-                    testYaw = Math.round(testYaw / gcd) * gcd;
-                    testPitch = Math.round(testPitch / gcd) * gcd;
+                    float yDelta = testYaw - yaw;
+                    float pDelta = testPitch - pitch;
+                    if (yDelta != 0.0f && Math.abs(yDelta) < gcd) yDelta = Math.signum(yDelta) * gcd;
+                    else yDelta = Math.round(yDelta / gcd) * gcd;
+                    if (pDelta != 0.0f && Math.abs(pDelta) < gcd) pDelta = Math.signum(pDelta) * gcd;
+                    else pDelta = Math.round(pDelta / gcd) * gcd;
+                    testYaw = yaw + yDelta;
+                    testPitch = pitch + pDelta;
                 }
                 return new float[]{testYaw, testPitch};
             }
+            for (int i = 0; i < 6; i++) {
+                float scale = 1.0f - (i + 1) * 0.15f;
+                float sYaw = yaw + state.yawOffset * scale;
+                float sPitch = pitch + state.pitchOffset * scale;
+                if (rayTrace(box, sYaw, sPitch, attackRange) != null) {
+                    state.yawOffset *= scale;
+                    state.pitchOffset *= scale;
+                    state.yawVelocity *= scale;
+                    state.pitchVelocity *= scale;
+                    float gcd = getSensitivityGCD();
+                    if (gcd > 0.0f) {
+                        float yDelta = sYaw - yaw;
+                        float pDelta = sPitch - pitch;
+                        if (yDelta != 0.0f && Math.abs(yDelta) < gcd) yDelta = Math.signum(yDelta) * gcd;
+                        else yDelta = Math.round(yDelta / gcd) * gcd;
+                        if (pDelta != 0.0f && Math.abs(pDelta) < gcd) pDelta = Math.signum(pDelta) * gcd;
+                        else pDelta = Math.round(pDelta / gcd) * gcd;
+                        sYaw = yaw + yDelta;
+                        sPitch = pitch + pDelta;
+                    }
+                    return new float[]{sYaw, sPitch};
+                }
+            }
+            state.yawOffset *= 0.5f;
+            state.pitchOffset *= 0.5f;
+            state.yawVelocity *= 0.5f;
+            state.pitchVelocity *= 0.5f;
+            float gcd = getSensitivityGCD();
+            if (gcd > 0.0f) {
+                yaw = Math.round(yaw / gcd) * gcd;
+                pitch = Math.round(pitch / gcd) * gcd;
+            }
+            float microYaw = yaw + state.yawOffset;
+            float microPitch = pitch + state.pitchOffset;
+            if (gcd > 0.0f) {
+                float yDelta = microYaw - yaw;
+                float pDelta = microPitch - pitch;
+                if (yDelta != 0.0f && Math.abs(yDelta) < gcd) yDelta = Math.signum(yDelta) * gcd;
+                else yDelta = Math.round(yDelta / gcd) * gcd;
+                if (pDelta != 0.0f && Math.abs(pDelta) < gcd) pDelta = Math.signum(pDelta) * gcd;
+                else pDelta = Math.round(pDelta / gcd) * gcd;
+                microYaw = yaw + yDelta;
+                microPitch = pitch + pDelta;
+            }
+            return new float[]{microYaw, microPitch};
         }
 
-        brownianYawOffset = 0.0f;
-        brownianPitchOffset = 0.0f;
         float gcd = getSensitivityGCD();
         if (gcd > 0.0f) {
-            yaw = Math.round(yaw / gcd) * gcd;
-            pitch = Math.round(pitch / gcd) * gcd;
+            float yDelta = testYaw - yaw;
+            float pDelta = testPitch - pitch;
+            if (yDelta != 0.0f && Math.abs(yDelta) < gcd) yDelta = Math.signum(yDelta) * gcd;
+            else yDelta = Math.round(yDelta / gcd) * gcd;
+            if (pDelta != 0.0f && Math.abs(pDelta) < gcd) pDelta = Math.signum(pDelta) * gcd;
+            else pDelta = Math.round(pDelta / gcd) * gcd;
+            testYaw = yaw + yDelta;
+            testPitch = pitch + pDelta;
         }
-        return new float[]{yaw, pitch};
+        return new float[]{testYaw, testPitch};
     }
 
     public static Vec3 clampVecToBox(Vec3 vector, AxisAlignedBB boundingBox) {
@@ -446,25 +746,48 @@ public class RotationUtil {
         private float ctrl2Yaw, ctrl2Pitch;
         private float progress = 1.0f;
         private float speed;
+        private float currentBezierYaw;
+        private float currentBezierPitch;
+
+        private float ctrl1Pos;
+        private float ctrl2Pos;
+        private float ctrl3Rand;
+        private float yMinStep;
+        private float pMinStep;
+        private float yDynStep;
+        private float pDynStep;
+
         private final ThreadLocalRandom rand = ThreadLocalRandom.current();
 
-        public void setup(float curYaw, float curPitch, float tgtYaw, float tgtPitch, float speed) {
+        public void setup(float curYaw, float curPitch, float tgtYaw, float tgtPitch, float speed,
+                          float ctrl1Pos, float ctrl2Pos, float ctrl3Rand,
+                          float yMinStep, float pMinStep,
+                          float yDynStep, float pDynStep) {
             this.startYaw = curYaw;
             this.startPitch = curPitch;
             this.targetYaw = tgtYaw;
             this.targetPitch = tgtPitch;
-            this.speed = Math.max(0.05f, speed);
+            this.speed = Math.max(0.02f, speed);
+            this.ctrl1Pos = ctrl1Pos;
+            this.ctrl2Pos = ctrl2Pos;
+            this.ctrl3Rand = ctrl3Rand;
+            this.yMinStep = yMinStep;
+            this.pMinStep = pMinStep;
+            this.yDynStep = yDynStep;
+            this.pDynStep = pDynStep;
 
             float yawDelta = MathHelper.wrapAngleTo180_float(tgtYaw - curYaw);
             float pitchDelta = MathHelper.wrapAngleTo180_float(tgtPitch - curPitch);
 
-            ctrl1Yaw = curYaw + yawDelta * (0.25f + rand.nextFloat() * 0.25f) + (float)rand.nextGaussian() * 15.0f;
-            ctrl1Pitch = curPitch + pitchDelta * (0.25f + rand.nextFloat() * 0.25f) + (float)rand.nextGaussian() * 8.0f;
+            ctrl1Yaw = curYaw + yawDelta * ctrl1Pos + (float)rand.nextGaussian() * ctrl3Rand;
+            ctrl1Pitch = curPitch + pitchDelta * ctrl1Pos + (float)rand.nextGaussian() * ctrl3Rand * 0.5f;
 
-            ctrl2Yaw = curYaw + yawDelta * (0.5f + rand.nextFloat() * 0.25f) + (float)rand.nextGaussian() * 15.0f;
-            ctrl2Pitch = curPitch + pitchDelta * (0.5f + rand.nextFloat() * 0.25f) + (float)rand.nextGaussian() * 8.0f;
+            ctrl2Yaw = curYaw + yawDelta * ctrl2Pos + (float)rand.nextGaussian() * ctrl3Rand;
+            ctrl2Pitch = curPitch + pitchDelta * ctrl2Pos + (float)rand.nextGaussian() * ctrl3Rand * 0.5f;
 
             this.progress = 0.0f;
+            this.currentBezierYaw = curYaw;
+            this.currentBezierPitch = curPitch;
         }
 
         public float[] getNextRotation() {
@@ -487,12 +810,32 @@ public class RotationUtil {
             pY = startYaw + MathHelper.wrapAngleTo180_float(pY - startYaw);
             pP = startPitch + MathHelper.wrapAngleTo180_float(pP - startPitch);
 
+            float yawDiff = MathHelper.wrapAngleTo180_float(pY - currentBezierYaw);
+            float pitchDiff = MathHelper.wrapAngleTo180_float(pP - currentBezierPitch);
+
+            if (yDynStep > 0) {
+                yawDiff *= (1.0f + Math.abs(yawDiff) / 180.0f * yDynStep);
+            }
+            if (pDynStep > 0) {
+                pitchDiff *= (1.0f + Math.abs(pitchDiff) / 180.0f * pDynStep);
+            }
+
+            if (Math.abs(MathHelper.wrapAngleTo180_float(targetYaw - currentBezierYaw)) > 0.01f && Math.abs(yawDiff) < yMinStep) {
+                yawDiff = Math.signum(MathHelper.wrapAngleTo180_float(targetYaw - currentBezierYaw)) * yMinStep;
+            }
+            if (Math.abs(MathHelper.wrapAngleTo180_float(targetPitch - currentBezierPitch)) > 0.01f && Math.abs(pitchDiff) < pMinStep) {
+                pitchDiff = Math.signum(MathHelper.wrapAngleTo180_float(targetPitch - currentBezierPitch)) * pMinStep;
+            }
+
+            currentBezierYaw += yawDiff;
+            currentBezierPitch += pitchDiff;
+
             float gcd = getSensitivityGCD();
             if (gcd > 0.0f) {
-                pY = Math.round(pY / gcd) * gcd;
-                pP = Math.round(pP / gcd) * gcd;
+                currentBezierYaw = Math.round(currentBezierYaw / gcd) * gcd;
+                currentBezierPitch = Math.round(currentBezierPitch / gcd) * gcd;
             }
-            return new float[]{pY, pP};
+            return new float[]{currentBezierYaw, currentBezierPitch};
         }
 
         public boolean isFinished() {
@@ -501,6 +844,105 @@ public class RotationUtil {
 
         public boolean needsUpdate(float tgtYaw, float tgtPitch, float threshold) {
             if (progress >= 1.0f) return true;
+            float yDiff = Math.abs(MathHelper.wrapAngleTo180_float(tgtYaw - this.targetYaw));
+            float pDiff = Math.abs(MathHelper.wrapAngleTo180_float(tgtPitch - this.targetPitch));
+            return yDiff > threshold || pDiff > threshold;
+        }
+    }
+
+    public static class MLRotator {
+        private float startYaw, startPitch;
+        private float targetYaw, targetPitch;
+        private float[] yawDeltas;
+        private float[] pitchDeltas;
+        private int currentTick = 0;
+        private int totalTicks = 0;
+        private float smoothFactor;
+        private float overshootProb;
+        private float overshootScale;
+        private float noiseScale;
+
+        public void setup(float curYaw, float curPitch, float tgtYaw, float tgtPitch,
+                          float smoothFactor, float overshootProb, float overshootScale, float noiseScale) {
+            this.startYaw = curYaw;
+            this.startPitch = curPitch;
+            this.targetYaw = tgtYaw;
+            this.targetPitch = tgtPitch;
+            this.smoothFactor = smoothFactor;
+            this.overshootProb = overshootProb;
+            this.overshootScale = overshootScale;
+            this.noiseScale = noiseScale;
+
+            float dYaw = MathHelper.wrapAngleTo180_float(tgtYaw - curYaw);
+            float dPitch = MathHelper.wrapAngleTo180_float(tgtPitch - curPitch);
+
+            totalTicks = Math.max(2, (int) Math.ceil(Math.sqrt(dYaw * dYaw + dPitch * dPitch) / (5.0f * smoothFactor)));
+            if (totalTicks > 20) totalTicks = 20;
+
+            yawDeltas = new float[totalTicks];
+            pitchDeltas = new float[totalTicks];
+
+            ThreadLocalRandom rand = ThreadLocalRandom.current();
+            float sumY = 0, sumP = 0;
+            float[] rawY = new float[totalTicks];
+            float[] rawP = new float[totalTicks];
+
+            for (int i = 0; i < totalTicks; i++) {
+                float progress = (float) i / (float) (totalTicks - 1);
+                float speed = (float) (Math.exp(-Math.exp(-10.0 * (progress - 0.5))) * 0.5);
+                rawY[i] = speed + (float) rand.nextGaussian() * 0.05f;
+                rawP[i] = speed + (float) rand.nextGaussian() * 0.05f;
+                sumY += rawY[i];
+                sumP += rawP[i];
+            }
+
+            if (sumY == 0) sumY = 1;
+            if (sumP == 0) sumP = 1;
+
+            for (int i = 0; i < totalTicks; i++) {
+                yawDeltas[i] = (rawY[i] / sumY) * dYaw;
+                pitchDeltas[i] = (rawP[i] / sumP) * dPitch;
+            }
+
+            if (totalTicks > 3 && rand.nextDouble() < overshootProb) {
+                int overTick = totalTicks - 2;
+                float overScale = 1.0f + (float) (rand.nextDouble() * 0.1 + 0.02) * overshootScale;
+                yawDeltas[overTick] *= overScale;
+                pitchDeltas[overTick] *= overScale;
+                yawDeltas[overTick + 1] -= (yawDeltas[overTick] * (overScale - 1.0f));
+                pitchDeltas[overTick + 1] -= (pitchDeltas[overTick] * (overScale - 1.0f));
+            }
+
+            currentTick = 0;
+        }
+
+        public float[] getNextRotation() {
+            if (currentTick >= totalTicks) {
+                return new float[]{targetYaw, targetPitch};
+            }
+            float y = startYaw;
+            float p = startPitch;
+            for (int i = 0; i <= currentTick; i++) {
+                y += yawDeltas[i];
+                p += pitchDeltas[i];
+            }
+            currentTick++;
+
+            float gcd = getSensitivityGCD();
+            if (gcd > 0.0f) {
+                y = Math.round(y / gcd) * gcd;
+                p = Math.round(p / gcd) * gcd;
+            }
+
+            return new float[]{y, p};
+        }
+
+        public boolean isFinished() {
+            return currentTick >= totalTicks;
+        }
+
+        public boolean needsUpdate(float tgtYaw, float tgtPitch, float threshold) {
+            if (currentTick >= totalTicks) return true;
             float yDiff = Math.abs(MathHelper.wrapAngleTo180_float(tgtYaw - this.targetYaw));
             float pDiff = Math.abs(MathHelper.wrapAngleTo180_float(tgtPitch - this.targetPitch));
             return yDiff > threshold || pDiff > threshold;
@@ -536,19 +978,6 @@ public class RotationUtil {
                                 lerp(u, grad(p[AB], x, y - 1, z), grad(p[BB], x - 1, y - 1, z))),
                         lerp(v, lerp(u, grad(p[AA + 1], x, y, z - 1), grad(p[BA + 1], x - 1, y, z - 1)),
                                 lerp(u, grad(p[AB + 1], x, y - 1, z - 1), grad(p[BB + 1], x - 1, y - 1, z - 1))));
-        }
-        public double octaveNoise(double x, double y, double z, int octaves, double persistence) {
-            double total = 0.0;
-            double frequency = 1.0;
-            double amplitude = 1.0;
-            double maxValue = 0.0;
-            for (int i = 0; i < octaves; i++) {
-                total += noise(x * frequency, y * frequency, z * frequency) * amplitude;
-                maxValue += amplitude;
-                amplitude *= persistence;
-                frequency *= 2.0;
-            }
-            return total / maxValue;
         }
     }
 }
